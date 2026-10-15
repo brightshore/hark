@@ -14,6 +14,13 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+
+        // Shipped next to the binaries (inside Contents/MacOS in the .app); an absolute path, which
+        // every backend needs.
+        var sampleImage = Path.Combine(AppContext.BaseDirectory, "Assets", "hark-sample.png");
+        if (File.Exists(sampleImage))
+            ImageBox.Text = sampleImage;
+
         Opened += async (_, _) => await ConnectAsync();
     }
 

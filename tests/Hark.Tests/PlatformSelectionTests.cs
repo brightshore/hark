@@ -11,6 +11,10 @@ namespace Hark.Tests;
 [TestClass]
 public sealed class PlatformSelectionTests
 {
+    // The sample app's image, copied next to the test binaries, so the image path is part of the
+    // real-API run rather than only of the XML the unit tests inspect.
+    private static readonly string SampleImage = Path.Combine(AppContext.BaseDirectory, "Assets", "hark-sample.png");
+
     [TestMethod]
     public async Task On_macOS_an_unbundled_process_is_unsupported_with_the_reason()
     {
@@ -47,12 +51,14 @@ public sealed class PlatformSelectionTests
             Body = "Shown and closed by the test suite.",
             Tag = "suite",
             Actions = [new("ok", "OK")],
+            ImagePath = SampleImage,
             Silent = true,
         });
         var closes = new List<NotificationClosedEventArgs>();
         manager.Closed += (_, e) => closes.Add(e);
         await manager.CloseAsync(handle);
 
+        File.Exists(SampleImage).Should().BeTrue("the toast must have carried a real image file");
         handle.Id.Should().Be("t:suite");
         closes.Should().ContainSingle().Which.Reason.Should().Be(NotificationCloseReason.ClosedByApp);
     }

@@ -17,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\demos\Hark.Sample\Assets\hark-sample.png" Link="Assets\hark-sample.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Hark\Hark.csproj" />
   </ItemGroup>
 </Project>

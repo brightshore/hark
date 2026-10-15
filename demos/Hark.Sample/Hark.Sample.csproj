@@ -6,6 +6,11 @@
 
   <!-- A hand-test bench: every Notification property gets a control, and every event the manager
        raises goes into the log, so a backend can be exercised against a real notification service. -->
+  <!-- Prefilled as the image path, so every platform's image support is exercised by default. -->
+  <ItemGroup>
+    <None Include="Assets\hark-sample.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia.Desktop" Version="12.1.0" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
