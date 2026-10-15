@@ -10,7 +10,7 @@ and the Objective-C runtime called from C# on macOS.
 | Platform | Service | Status |
 | --- | --- | --- |
 | Linux / BSD | `org.freedesktop.Notifications` over D-Bus | **Working** |
-| Windows 10 1809+ | WinRT toasts through raw COM | **In progress** |
+| Windows 10 1809+ | WinRT toasts through raw COM | **Working** |
 | macOS 11+ | `UNUserNotificationCenter` via the Objective-C runtime | **Working** |
 | Flatpak | `org.freedesktop.portal.Notification` | Planned |
 
