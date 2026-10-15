@@ -36,5 +36,8 @@ internal interface IToastEventSink
     void OnFailed(string tag, int errorCode);
 }
 
-/// <summary>A toast: its tag (unique per app, at most 64 characters), its XML, and whether to skip the popup.</summary>
-internal sealed record ToastRequest(string Tag, string Xml, bool SuppressPopup);
+/// <summary>
+/// A toast: its tag (unique per app, at most 64 characters), its XML, whether to skip the popup,
+/// and when Windows should remove it on its own, even if the app has exited.
+/// </summary>
+internal sealed record ToastRequest(string Tag, string Xml, bool SuppressPopup, DateTimeOffset? ExpiresAt = null);

@@ -41,6 +41,9 @@ internal sealed unsafe class ToastPlatform : IToastPlatform
     private static readonly Guid IID_IToastFailedEventArgs = new("35176862-cfd4-44f8-ad64-f500fd896c3b");
     private static readonly Guid IID_IXmlDocument = new("f7f3a506-1e87-42d6-bcfb-b8c809fa5494");
     private static readonly Guid IID_IXmlDocumentIO = new("6cd0e74e-ee65-4489-9ebf-ca43e87ba637");
+    private static readonly Guid IID_IPropertyValueStatics = new("629bdbc8-d932-4ff4-96b9-8d96c5c1e858");
+    // IReference<DateTime>: pinterface({61c17706-2d65-11e0-9ae8-d48564015472};struct(Windows.Foundation.DateTime;i8))
+    private static readonly Guid IID_IReferenceOfDateTime = new("5541d8a7-497c-5aa4-86fc-7713adbf2a2c");
 
     // Vtable slots, counted from IInspectable's six.
     private const int Statics_CreateToastNotifierWithId = WinRT.InspectableSlots + 1;
@@ -50,7 +53,9 @@ internal sealed unsafe class ToastPlatform : IToastPlatform
     private const int Notifier_Hide = WinRT.InspectableSlots + 1;
     private const int Notifier_get_Setting = WinRT.InspectableSlots + 2;
     private const int Factory_CreateToastNotification = WinRT.InspectableSlots + 0;
+    private const int Toast_put_ExpirationTime = WinRT.InspectableSlots + 1;
     private const int Toast_add_Dismissed = WinRT.InspectableSlots + 3;
+    private const int PropertyValue_CreateDateTime = WinRT.InspectableSlots + 15;
     private const int Toast_add_Activated = WinRT.InspectableSlots + 5;
     private const int Toast_add_Failed = WinRT.InspectableSlots + 7;
     private const int Toast2_put_Tag = WinRT.InspectableSlots + 0;
@@ -191,6 +196,8 @@ internal sealed unsafe class ToastPlatform : IToastPlatform
                 WinRT.Check(((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int>)WinRT.Slot(toast2, Toast2_put_Tag))(toast2, tag.Handle), "ToastNotification.Tag");
             using (var group = new WinRT.HString(Group))
                 WinRT.Check(((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int>)WinRT.Slot(toast2, Toast2_put_Group))(toast2, group.Handle), "ToastNotification.Group");
+            if (request.ExpiresAt is { } expiresAt)
+                SetExpirationTime(toast, expiresAt);
             if (request.SuppressPopup)
                 WinRT.Check(((delegate* unmanaged[Stdcall]<IntPtr, byte, int>)WinRT.Slot(toast2, Toast2_put_SuppressPopup))(toast2, 1), "ToastNotification.SuppressPopup");
 
@@ -247,6 +254,30 @@ internal sealed unsafe class ToastPlatform : IToastPlatform
         using var hAppId = new WinRT.HString(_appId);
         ((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, IntPtr, IntPtr, int>)WinRT.Slot(_history, History_RemoveGroupedTagWithId))(
             _history, hTag.Handle, hGroup.Handle, hAppId.Handle);
+    }
+
+    /// <summary>
+    /// <c>ToastNotification.ExpirationTime</c> takes an <c>IReference&lt;DateTime&gt;</c>: a boxed
+    /// value made by <c>PropertyValue.CreateDateTime</c>. WinRT's DateTime is a FILETIME, 100 ns
+    /// ticks since 1601 UTC.
+    /// </summary>
+    private static void SetExpirationTime(IntPtr toast, DateTimeOffset expiresAt)
+    {
+        IntPtr statics = 0, boxed = 0, reference = 0;
+        try
+        {
+            statics = WinRT.GetActivationFactory("Windows.Foundation.PropertyValue", IID_IPropertyValueStatics);
+            WinRT.Check(((delegate* unmanaged[Stdcall]<IntPtr, long, IntPtr*, int>)WinRT.Slot(statics, PropertyValue_CreateDateTime))(
+                statics, expiresAt.UtcDateTime.ToFileTimeUtc(), &boxed), "PropertyValue.CreateDateTime");
+            reference = WinRT.QueryInterface(boxed, IID_IReferenceOfDateTime);
+            WinRT.Check(((delegate* unmanaged[Stdcall]<IntPtr, IntPtr, int>)WinRT.Slot(toast, Toast_put_ExpirationTime))(toast, reference), "ToastNotification.ExpirationTime");
+        }
+        finally
+        {
+            WinRT.Release(statics);
+            WinRT.Release(boxed);
+            WinRT.Release(reference);
+        }
     }
 
     private static void Subscribe(IntPtr toast, int addSlot, Guid handlerIid, Action<IntPtr, IntPtr> callback)

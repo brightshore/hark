@@ -22,9 +22,14 @@ public sealed record Notification
     public bool Silent { get; init; }
 
     /// <summary>
-    /// How long it stays up. <c>null</c> leaves it to the platform; <see cref="Timeout.InfiniteTimeSpan"/>
-    /// asks it never to expire. Platforms are free to ignore this.
+    /// How long until the notification goes away entirely, closing as
+    /// <see cref="NotificationCloseReason.Expired"/>. <c>null</c> leaves it to the platform;
+    /// <see cref="Timeout.InfiniteTimeSpan"/> asks it never to expire.
     /// </summary>
+    /// <remarks>
+    /// Windows and macOS: Hark removes it when the time is up (Windows also removes it on its own if
+    /// the app has exited). Linux: passed to the notification daemon, which may ignore it; GNOME does.
+    /// </remarks>
     public TimeSpan? Expiration { get; init; }
 
     /// <summary>

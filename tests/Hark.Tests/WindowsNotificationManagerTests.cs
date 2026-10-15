@@ -3,6 +3,7 @@ using System.Text;
 using System.Xml.Linq;
 using AwesomeAssertions;
 using Hark.Windows;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Hark.Tests;
 
@@ -203,6 +204,59 @@ public sealed class WindowsNotificationManagerTests
 
         first.Should().ContainSingle().Which.Handle.Should().Be(new NotificationHandle("t:launch", "launch"));
         second.Should().BeEmpty();
+    }
+
+    [TestMethod]
+    [DataRow(5.0, false)]
+    [DataRow(30.0, true)]
+    [DataRow(-1.0, true)] // never expires
+    public void Asks_for_the_long_popup_when_the_expiry_outlasts_the_short_one(double seconds, bool longPopup)
+    {
+        var expiration = seconds < 0 ? Timeout.InfiniteTimeSpan : TimeSpan.FromSeconds(seconds);
+
+        var xml = XElement.Parse(WindowsNotificationManager.BuildXml(new Notification { Title = "t", Expiration = expiration }, "g:1"));
+
+        (xml.Attribute("duration")?.Value).Should().Be(longPopup ? "long" : null);
+    }
+
+    [TestMethod]
+    public async Task Expiration_is_given_to_windows_and_closes_the_toast_as_expired()
+    {
+        var time = new FakeTimeProvider(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
+        var platform = new FakeToastPlatform();
+        var manager = WindowsNotificationManager.Create(platform, time);
+        var handle = await manager.ShowAsync(new Notification { Title = "t", Expiration = TimeSpan.FromSeconds(30) });
+        await manager.ShowAsync(new Notification { Title = "t", Expiration = Timeout.InfiniteTimeSpan });
+        var closes = new List<NotificationClosedEventArgs>();
+        manager.Closed += (_, e) => closes.Add(e);
+
+        platform.Shown.Select(r => r.ExpiresAt).Should().Equal(time.GetUtcNow().AddSeconds(30), (DateTimeOffset?)null);
+
+        // Timing out into Notification Center is not the end of it; the expiry still is.
+        platform.Sink!.OnDismissed(handle.Id, 2);
+        time.Advance(TimeSpan.FromSeconds(30));
+
+        platform.Hidden.Should().Equal(handle.Id);
+        closes.Should().ContainSingle().Which.Should().BeEquivalentTo(new { Handle = handle, Reason = NotificationCloseReason.Expired });
+    }
+
+    [TestMethod]
+    public async Task Closing_or_clicking_before_expiry_cancels_the_timer()
+    {
+        var time = new FakeTimeProvider();
+        var platform = new FakeToastPlatform();
+        var manager = WindowsNotificationManager.Create(platform, time);
+        var closed = await manager.ShowAsync(new Notification { Title = "t", Expiration = TimeSpan.FromSeconds(5) });
+        var clicked = await manager.ShowAsync(new Notification { Title = "t", Expiration = TimeSpan.FromSeconds(5) });
+        var expiries = 0;
+        manager.Closed += (_, e) => expiries += e.Reason == NotificationCloseReason.Expired ? 1 : 0;
+
+        await manager.CloseAsync(closed);
+        platform.Sink!.OnActivated(ToastArguments.Format(clicked.Id, null), fromActivator: true);
+        time.Advance(TimeSpan.FromMinutes(1));
+
+        expiries.Should().Be(0);
+        platform.Hidden.Should().Equal(closed.Id);
     }
 
     [TestMethod]

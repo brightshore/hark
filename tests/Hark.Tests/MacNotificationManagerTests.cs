@@ -1,5 +1,6 @@
 using AwesomeAssertions;
 using Hark.MacOS;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Hark.Tests;
 
@@ -135,6 +136,45 @@ public sealed class MacNotificationManagerTests
 
         center.Removed.Should().Equal(handle.Id, handle.Id);
         closes.Should().ContainSingle().Which.Reason.Should().Be(NotificationCloseReason.ClosedByApp);
+    }
+
+    [TestMethod]
+    public async Task Expiration_removes_the_notification_and_closes_it_as_expired()
+    {
+        var time = new FakeTimeProvider();
+        var center = new FakeUserNotificationCenter();
+        var manager = await MacNotificationManager.CreateAsync(center, CancellationToken.None, time);
+        var expiring = await manager.ShowAsync(new Notification { Title = "t", Expiration = TimeSpan.FromSeconds(30) });
+        var forever = await manager.ShowAsync(new Notification { Title = "t", Expiration = Timeout.InfiniteTimeSpan });
+        var closes = new List<NotificationClosedEventArgs>();
+        manager.Closed += (_, e) => closes.Add(e);
+
+        time.Advance(TimeSpan.FromSeconds(29));
+        closes.Should().BeEmpty();
+        time.Advance(TimeSpan.FromHours(1));
+
+        center.Removed.Should().Equal(expiring.Id);
+        closes.Should().ContainSingle().Which.Should().BeEquivalentTo(new { Handle = expiring, Reason = NotificationCloseReason.Expired });
+        forever.Id.Should().NotBe(expiring.Id);
+    }
+
+    [TestMethod]
+    public async Task A_click_or_a_replacement_without_expiry_cancels_the_timer()
+    {
+        var time = new FakeTimeProvider();
+        var center = new FakeUserNotificationCenter();
+        var manager = await MacNotificationManager.CreateAsync(center, CancellationToken.None, time);
+        var clicked = await manager.ShowAsync(new Notification { Title = "t", Expiration = TimeSpan.FromSeconds(5) });
+        await manager.ShowAsync(new Notification { Title = "t", Tag = "x", Expiration = TimeSpan.FromSeconds(5) });
+        await manager.ShowAsync(new Notification { Title = "t", Tag = "x" });
+        var closes = new List<NotificationClosedEventArgs>();
+        manager.Closed += (_, e) => closes.Add(e);
+
+        center.Sink!.OnResponse(clicked.Id, MacNotificationManager.DefaultActionIdentifier);
+        time.Advance(TimeSpan.FromMinutes(1));
+
+        closes.Should().BeEmpty();
+        center.Removed.Should().BeEmpty();
     }
 
     [TestMethod]

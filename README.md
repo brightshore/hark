@@ -59,6 +59,8 @@ Events are raised on a background thread here.
 - **Capabilities** are discovered at startup, because on Linux they depend on the running daemon.
   Check `Capabilities.HasFlag(NotificationCapabilities.Actions)` before relying on buttons.
 - **`Tag`** replaces a notification still on screen instead of stacking a new one.
+- **`Expiration`** removes a notification after a time and closes it as `Expired`. On Linux the daemon
+  decides (GNOME ignores it); Windows and macOS always honour it.
 - **`Body` is plain text.** Hark escapes it for servers that parse markup.
 - **`ActivationToken`** (Wayland) is what lets a compositor raise your window when the user clicks.
 
@@ -74,7 +76,8 @@ The first `CreateAsync` shows the system permission prompt. macOS remembers a re
 id and does not prompt again, so a refused app has to be switched on in System Settings >
 Notifications; `UnsupportedReason` says so.
 
-Not available on macOS: `Expiration` (no per-notification timeout) and `ActivationToken`.
+`Expiration` removes the notification when the time is up and closes it as `Expired`, while the
+app runs. Not available on macOS: `ActivationToken`.
 `Urgency.Critical` maps to time-sensitive, which needs the time-sensitive entitlement to break
 through Focus.
 
@@ -90,8 +93,8 @@ Clicks are delivered through a COM activator Hark registers for the app (per use
 so a click from Notification Center after the app has exited starts it again: Windows runs the app
 with `-Embedding` and the click arrives as soon as the app creates its manager. The `Activated`
 event holds such a click until the app subscribes, and gives it the handle the earlier run had.
-Not available on Windows:
-`Expiration` and `ActivationToken`. `Urgency.Low` skips the popup and goes straight to Notification
+`Expiration` is also given to Windows as the toast's own expiry, so it goes even after the app
+exits; while the app runs it closes as `Expired`. Not available on Windows: `ActivationToken`. `Urgency.Low` skips the popup and goes straight to Notification
 Center; `Critical` uses the `urgent` scenario (Windows 11).
 
 ## Dependencies

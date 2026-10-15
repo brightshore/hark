@@ -14,12 +14,21 @@ namespace Hark.Windows;
 /// the name Windows shows on each toast. <see cref="AppIdentity.IconPath"/> is the toast's app icon.
 /// </para>
 /// <para>
-/// Not available on Windows: <see cref="Notification.Expiration"/> (a toast's on-screen time is the
-/// user's setting) and <see cref="NotificationActivatedEventArgs.ActivationToken"/>.
+/// <see cref="Notification.Expiration"/> is given to Windows as the toast's own expiry, so the toast
+/// goes even if the app has exited, and a timer removes it and closes it as
+/// <see cref="NotificationCloseReason.Expired"/> while the app runs, since Windows reports nothing.
+/// How long the popup itself stays up is only "short" or "long"; anything over
+/// <see cref="ShortPopup"/>, or never, asks for long.
+/// </para>
+/// <para>
+/// Not available on Windows: <see cref="NotificationActivatedEventArgs.ActivationToken"/>.
 /// </para>
 /// </remarks>
 internal sealed class WindowsNotificationManager : INotificationManager, IToastEventSink
 {
+    /// <summary>About how long Windows shows a "short" popup.</summary>
+    internal static readonly TimeSpan ShortPopup = TimeSpan.FromSeconds(7);
+
     /// <summary>Windows caps a toast tag at 64 characters.</summary>
     internal const int MaxTagLength = 64;
 
@@ -29,13 +38,20 @@ internal sealed class WindowsNotificationManager : INotificationManager, IToastE
         | NotificationCapabilities.Close;
 
     private readonly IToastPlatform _platform;
+    private readonly TimeProvider _time;
+    private readonly ExpiryTimers _expiry;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, NotificationHandle> _live = new(StringComparer.Ordinal);
     private readonly List<NotificationActivatedEventArgs> _pendingActivations = [];
     private EventHandler<NotificationActivatedEventArgs>? _activated;
     private bool _disposed;
 
-    private WindowsNotificationManager(IToastPlatform platform) => _platform = platform;
+    private WindowsNotificationManager(IToastPlatform platform, TimeProvider time)
+    {
+        _platform = platform;
+        _time = time;
+        _expiry = new ExpiryTimers(time);
+    }
 
     public bool IsSupported => true;
     public string? UnsupportedReason => null;
@@ -80,9 +96,9 @@ internal sealed class WindowsNotificationManager : INotificationManager, IToastE
     }
 
     /// <summary>The seam the tests use.</summary>
-    internal static WindowsNotificationManager Create(IToastPlatform platform)
+    internal static WindowsNotificationManager Create(IToastPlatform platform, TimeProvider? time = null)
     {
-        var manager = new WindowsNotificationManager(platform);
+        var manager = new WindowsNotificationManager(platform, time ?? TimeProvider.System);
         platform.SetSink(manager);
         return manager;
     }
@@ -97,11 +113,22 @@ internal sealed class WindowsNotificationManager : INotificationManager, IToastE
         // Every toast gets a tag, because a tag is what Hide and History address. A caller's tag
         // maps to the same toast tag every time, which is what makes Windows replace in place.
         var toastTag = ToastTag(notification.Tag);
-        _platform.Show(new ToastRequest(toastTag, BuildXml(notification, toastTag), SuppressPopup: notification.Urgency == NotificationUrgency.Low));
+        var expires = notification.Expiration is { } e && e != Timeout.InfiniteTimeSpan ? e : (TimeSpan?)null;
+        _platform.Show(new ToastRequest(
+            toastTag,
+            BuildXml(notification, toastTag),
+            SuppressPopup: notification.Urgency == NotificationUrgency.Low,
+            ExpiresAt: expires is { } after ? _time.GetUtcNow() + after : null));
 
         var handle = new NotificationHandle(toastTag, notification.Tag);
         lock (_gate)
             _live[toastTag] = handle;
+
+        // A replacement without an expiry must not inherit its predecessor's.
+        if (expires is { } expiry)
+            _expiry.Schedule(toastTag, expiry, () => Expire(handle));
+        else
+            _expiry.Cancel(toastTag);
         return Task.FromResult(handle);
     }
 
@@ -111,6 +138,7 @@ internal sealed class WindowsNotificationManager : INotificationManager, IToastE
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         _platform.Hide(handle.Id);
+        _expiry.Cancel(handle.Id);
         bool removed;
         lock (_gate)
             removed = _live.Remove(handle.Id);
@@ -162,6 +190,9 @@ internal sealed class WindowsNotificationManager : INotificationManager, IToastE
         if (notification.Silent)
             toast.Add(new XElement("audio", new XAttribute("silent", "true")));
 
+        if (notification.Expiration is { } expiration && (expiration == Timeout.InfiniteTimeSpan || expiration > ShortPopup))
+            toast.Add(new XAttribute("duration", "long"));
+
         return toast.ToString(SaveOptions.DisableFormatting);
     }
 
@@ -185,6 +216,7 @@ internal sealed class WindowsNotificationManager : INotificationManager, IToastE
                 handle = new NotificationHandle(parsed.ToastTag, OriginalTag(parsed.ToastTag));
             }
             activation = new NotificationActivatedEventArgs(handle, parsed.ActionId, activationToken: null);
+            _expiry.Cancel(parsed.ToastTag);
             handlers = _activated;
             if (handlers is null)
                 _pendingActivations.Add(activation);
@@ -205,8 +237,15 @@ internal sealed class WindowsNotificationManager : INotificationManager, IToastE
 
     void IToastEventSink.OnFailed(string tag, int errorCode) => Close(tag, NotificationCloseReason.Unknown);
 
+    private void Expire(NotificationHandle handle)
+    {
+        _platform.Hide(handle.Id);
+        Close(handle.Id, NotificationCloseReason.Expired);
+    }
+
     private void Close(string tag, NotificationCloseReason reason)
     {
+        _expiry.Cancel(tag);
         NotificationHandle? handle;
         lock (_gate)
         {
@@ -219,6 +258,7 @@ internal sealed class WindowsNotificationManager : INotificationManager, IToastE
     public ValueTask DisposeAsync()
     {
         _disposed = true;
+        _expiry.Dispose();
         return ValueTask.CompletedTask;
     }
 }

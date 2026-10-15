@@ -12,8 +12,10 @@ namespace Hark.MacOS;
 /// signing is enough for local runs); anywhere else the manager reports unsupported.
 /// </para>
 /// <para>
-/// Expiration is not honoured: macOS has no per-notification timeout, and banners leave on the
-/// user's chosen style. Closing is only reported for a dismissal and for <see cref="CloseAsync"/>.
+/// macOS has no per-notification timeout, so <see cref="Notification.Expiration"/> is a timer here:
+/// when it fires the notification is removed from screen and Notification Center and closes as
+/// <see cref="NotificationCloseReason.Expired"/>. It only runs while the app does. How long a banner
+/// stays up is the user's choice of style, so a never-expiring notification is simply left alone.
 /// </para>
 /// </remarks>
 internal sealed class MacNotificationManager : INotificationManager, IMacResponseSink
@@ -28,12 +30,17 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
         | NotificationCapabilities.Close;
 
     private readonly IUserNotificationCenter _center;
+    private readonly ExpiryTimers _expiry;
     private readonly Lock _gate = new();
     private readonly Dictionary<string, NotificationHandle> _live = new(StringComparer.Ordinal);
     private readonly Dictionary<string, MacCategory> _categories = new(StringComparer.Ordinal);
     private bool _disposed;
 
-    private MacNotificationManager(IUserNotificationCenter center) => _center = center;
+    private MacNotificationManager(IUserNotificationCenter center, TimeProvider time)
+    {
+        _center = center;
+        _expiry = new ExpiryTimers(time);
+    }
 
     public bool IsSupported => true;
     public string? UnsupportedReason => null;
@@ -52,9 +59,9 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
     }
 
     /// <summary>The seam the tests use.</summary>
-    internal static async Task<INotificationManager> CreateAsync(IUserNotificationCenter center, CancellationToken cancellationToken)
+    internal static async Task<INotificationManager> CreateAsync(IUserNotificationCenter center, CancellationToken cancellationToken, TimeProvider? time = null)
     {
-        var manager = new MacNotificationManager(center);
+        var manager = new MacNotificationManager(center, time ?? TimeProvider.System);
         center.SetResponseSink(manager);
 
         var (granted, error) = await center.RequestAuthorizationAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -101,6 +108,12 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
         var handle = new NotificationHandle(identifier, notification.Tag);
         lock (_gate)
             _live[identifier] = handle;
+
+        // A replacement without an expiry must not inherit its predecessor's.
+        if (notification.Expiration is { } expiration && expiration != Timeout.InfiniteTimeSpan)
+            _expiry.Schedule(identifier, expiration, () => Expire(handle));
+        else
+            _expiry.Cancel(identifier);
         return handle;
     }
 
@@ -110,6 +123,7 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         _center.Remove(handle.Id);
+        _expiry.Cancel(handle.Id);
 
         // macOS reports nothing for a removal it was asked to make. Linux does, so for the same
         // contract on both, the manager reports it.
@@ -156,6 +170,7 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
             // Any response ends the notification on macOS: a click or a button removes it too.
             _live.Remove(requestIdentifier);
         }
+        _expiry.Cancel(requestIdentifier);
 
         if (actionIdentifier == DismissActionIdentifier)
             Closed?.Invoke(this, new NotificationClosedEventArgs(handle, NotificationCloseReason.Dismissed));
@@ -164,9 +179,20 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
                 handle, actionIdentifier == DefaultActionIdentifier ? null : actionIdentifier, activationToken: null));
     }
 
+    private void Expire(NotificationHandle handle)
+    {
+        _center.Remove(handle.Id);
+        bool removed;
+        lock (_gate)
+            removed = _live.Remove(handle.Id);
+        if (removed)
+            Closed?.Invoke(this, new NotificationClosedEventArgs(handle, NotificationCloseReason.Expired));
+    }
+
     public ValueTask DisposeAsync()
     {
         _disposed = true;
+        _expiry.Dispose();
         return ValueTask.CompletedTask;
     }
 }
