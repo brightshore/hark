@@ -1,0 +1,65 @@
+global.json
+  s_299385e015fd74::t_693472f9672d87 1-5
+Directory.Build.props
+  s_299385e015fd74::t_693472f9672d87 1-28
+src/Hark/Linux/FreeDesktopNotificationManager.cs
+  s_299385e015fd74::t_7b345ef74dd236 198-199,201-204
+  s_299385e015fd74::t_371bb3a94f755b 1-197,200,205-273
+tests/Hark.Tests/FreeDesktopNotificationManagerTests.cs
+  s_299385e015fd74::t_96650c14dd5060 1-256
+src/Directory.Build.props
+  s_299385e015fd74::t_693472f9672d87 1-9
+src/Hark/INotificationManager.cs
+  s_299385e015fd74::t_15723d12f3aa5d 1-79
+src/Hark/Notification.cs
+  s_299385e015fd74::t_15723d12f3aa5d 1-51
+.gitignore
+  s_299385e015fd74::t_693472f9672d87 1-8
+src/Hark/UnsupportedNotificationManager.cs
+  s_299385e015fd74::t_15723d12f3aa5d 1-20
+src/Hark/NotificationManager.cs
+  s_299385e015fd74::t_15723d12f3aa5d 1-26
+src/Hark/Hark.csproj
+  s_299385e015fd74::t_693472f9672d87 1-19
+tests/Hark.Tests/DBusRoundTripTests.cs
+  s_299385e015fd74::t_96e7c295380f41 1-201
+Hark.slnx
+  s_299385e015fd74::t_693472f9672d87 1-9
+src/Hark/NotificationCapabilities.cs
+  s_299385e015fd74::t_15723d12f3aa5d 1-26
+src/Hark/AppIdentity.cs
+  s_299385e015fd74::t_15723d12f3aa5d 1-19
+src/Hark.Avalonia/DispatchingNotificationManager.cs
+  s_299385e015fd74::t_b14f200cc286d0 1-13,15-51,58-64
+  s_299385e015fd74::t_868bedb0b8a35e 14,52-57
+tests/Hark.Tests/FakeNotificationsBus.cs
+  s_299385e015fd74::t_96650c14dd5060 1-42
+.github/workflows/ci.yml
+  s_299385e015fd74::t_ce3ac1f5b94d96 1-57
+src/Hark/Linux/DBusNotificationsBus.cs
+  s_299385e015fd74::t_26a0623f880df5 1-187
+src/Hark.Avalonia/AvaloniaNotifications.cs
+  s_299385e015fd74::t_b14f200cc286d0 1-33
+README.md
+  s_299385e015fd74::t_ce3ac1f5b94d96 1-82
+tests/Hark.Tests/Hark.Tests.csproj
+  s_299385e015fd74::t_693472f9672d87 1-22
+src/Hark.Avalonia/Hark.Avalonia.csproj
+  s_299385e015fd74::t_693472f9672d87 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "27fb0ed8a86b7f71a14a687ec5b1a1bedb24faeb",
+  "prompts": {},
+  "sessions": {
+    "s_299385e015fd74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e67983ba-4c16-4ab0-a83d-131794d0805e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "John Campion Jr <john@brightshore.io>"
+    }
+  }
+}
