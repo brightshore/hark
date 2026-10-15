@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Native OS notifications for .NET desktop apps: freedesktop D-Bus on Linux, with Windows and macOS backends to follow. No UI framework dependency.</Description>
+    <PackageTags>notifications;toast;desktop;dbus;freedesktop;linux;windows;macos</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned to the version Avalonia 12 itself references (Avalonia.FreeDesktop 12.1.x -> 0.94.1).
+         Tmds.DBus.Protocol is 0.x and breaks its API between minors, so drifting from Avalonia's pin
+         would hand an Avalonia app two incompatible expectations of one assembly. Move it when
+         Avalonia moves. -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hark.Tests" />
+  </ItemGroup>
+</Project>

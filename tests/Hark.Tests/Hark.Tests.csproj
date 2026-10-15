@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Microsoft Testing Platform + MSTest, matching Avalloy. -->
+    <EnableMicrosoftTestingPlatform>true</EnableMicrosoftTestingPlatform>
+    <EnableMSTestRunner>true</EnableMSTestRunner>
+    <!-- A hang guard, not a budget: the whole suite is in-memory apart from one real-bus round trip. -->
+    <TestingPlatformCommandLineArguments>--timeout 60s</TestingPlatformCommandLineArguments>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AwesomeAssertions" Version="9.4.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.2.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Hark\Hark.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Hark/Hark.csproj" />
+    <Project Path="src/Hark.Avalonia/Hark.Avalonia.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Hark.Tests/Hark.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,57 @@
+# Build and test on all three platforms.
+#
+# The Linux leg is the one that proves the backend: it runs the suite inside dbus-run-session with
+# HARK_REQUIRE_DBUS=1, so DBusRoundTripTests talks to a real bus and a missing bus FAILS rather than
+# going inconclusive. macOS and Windows legs prove the packages build and report "unsupported"
+# cleanly until their backends exist.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Hark.slnx
+
+      - name: Build (Release)
+        run: dotnet build Hark.slnx --configuration Release --no-restore
+
+      - name: Install dbus
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends dbus
+
+      - name: Test (real session bus)
+        if: runner.os == 'Linux'
+        env:
+          HARK_REQUIRE_DBUS: '1'
+        run: dbus-run-session -- dotnet test --solution Hark.slnx --configuration Release --no-build
+
+      - name: Test
+        if: runner.os != 'Linux'
+        run: dotnet test --solution Hark.slnx --configuration Release --no-build
+
+      - name: Pack
+        run: dotnet pack Hark.slnx --configuration Release --no-build

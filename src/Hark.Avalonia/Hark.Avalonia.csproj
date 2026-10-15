@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Avalonia integration for Hark native OS notifications: AppBuilder setup and UI-thread event delivery.</Description>
+    <PackageTags>avalonia;notifications;toast;desktop</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hark\Hark.csproj" />
+  </ItemGroup>
+</Project>
