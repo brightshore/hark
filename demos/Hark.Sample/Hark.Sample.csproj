@@ -11,6 +11,26 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" />
   </ItemGroup>
 
+  <!-- macOS only delivers notifications to an app running from a signed .app bundle, so on a Mac
+       every build also lays the output out as "Hark Sample.app" next to it and signs it ad hoc.
+       Run it with: open "demos/Hark.Sample/bin/Debug/net10.0/Hark Sample.app"
+       The bundle id in Info.plist matches the AppIdentity in Program.cs. -->
+  <Target Name="HarkBundleMacApp" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <!-- Inside the target: OutDir is not set yet when the project body is evaluated. -->
+    <PropertyGroup>
+      <HarkAppBundle>$([System.IO.Path]::GetFullPath('$(OutDir)'))Hark Sample.app</HarkAppBundle>
+    </PropertyGroup>
+    <ItemGroup>
+      <_HarkAppFiles Include="$(OutDir)**" Exclude="$(HarkAppBundle)/**" />
+    </ItemGroup>
+    <RemoveDir Directories="$(HarkAppBundle)" />
+    <Copy SourceFiles="@(_HarkAppFiles)" DestinationFolder="$(HarkAppBundle)/Contents/MacOS/%(RecursiveDir)" />
+    <Copy SourceFiles="Info.plist" DestinationFolder="$(HarkAppBundle)/Contents" />
+    <!-- Ad hoc: enough for the machine that built it. deep, because the native dylibs inside
+         Contents/MacOS are nested code the bundle's signature must cover. -->
+    <Exec Command="codesign --force --deep --sign - &quot;$(HarkAppBundle)&quot;" />
+  </Target>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Hark.Avalonia\Hark.Avalonia.csproj" />
   </ItemGroup>

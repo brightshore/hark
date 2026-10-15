@@ -1,4 +1,5 @@
 using Hark.Linux;
+using Hark.MacOS;
 
 namespace Hark;
 
@@ -20,7 +21,10 @@ public static class NotificationManager
         if (OperatingSystem.IsLinux() || OperatingSystem.IsFreeBSD())
             return await FreeDesktopNotificationManager.CreateAsync(identity, cancellationToken).ConfigureAwait(false);
 
-        // Windows and macOS backends are not written yet. Saying so beats a silent no-op.
+        if (OperatingSystem.IsMacOS())
+            return await MacNotificationManager.CreateAsync(cancellationToken).ConfigureAwait(false);
+
+        // The Windows backend is not written yet. Saying so beats a silent no-op.
         return new UnsupportedNotificationManager($"Hark has no notification backend for {System.Runtime.InteropServices.RuntimeInformation.OSDescription} yet.");
     }
 }

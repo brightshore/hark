@@ -11,7 +11,7 @@ namespace Hark.Linux;
 internal sealed class FreeDesktopNotificationManager : INotificationManager, INotificationSignalSink
 {
     /// <summary>The spec's reserved action key for clicking the notification body.</summary>
-    internal const string DefaultActionKey = "default";
+    internal const string DefaultActionKey = NotificationValidation.ReservedActionId;
 
     /// <summary>
     /// The default action needs a label on the wire. Most servers never display it (clicking the body
@@ -95,7 +95,7 @@ internal sealed class FreeDesktopNotificationManager : INotificationManager, INo
     {
         ArgumentNullException.ThrowIfNull(notification);
         ObjectDisposedException.ThrowIf(_disposed, this);
-        Validate(notification);
+        NotificationValidation.Validate(notification);
 
         uint replacesId = 0;
         if (notification.Tag is { } tag)
@@ -202,24 +202,6 @@ internal sealed class FreeDesktopNotificationManager : INotificationManager, INo
         => text.Replace("&", "&amp;", StringComparison.Ordinal)
                .Replace("<", "&lt;", StringComparison.Ordinal)
                .Replace(">", "&gt;", StringComparison.Ordinal);
-
-    private static void Validate(Notification notification)
-    {
-        if (string.IsNullOrWhiteSpace(notification.Title))
-            throw new ArgumentException("A notification needs a title.", nameof(notification));
-        _ = ToExpireTimeout(notification.Expiration);
-
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var action in notification.Actions)
-        {
-            if (string.IsNullOrEmpty(action.Id))
-                throw new ArgumentException("An action needs a non-empty id.", nameof(notification));
-            if (action.Id == DefaultActionKey)
-                throw new ArgumentException($"The action id '{DefaultActionKey}' is reserved for clicking the notification body.", nameof(notification));
-            if (!seen.Add(action.Id))
-                throw new ArgumentException($"The action id '{action.Id}' is used twice.", nameof(notification));
-        }
-    }
 
     void INotificationSignalSink.OnActivationToken(uint id, string activationToken)
     {

@@ -4,13 +4,14 @@ Native OS notifications for .NET desktop apps, with first-class Avalonia support
 
 Avalonia has no notification API of its own. The existing libraries either ship a UWP toolkit,
 compile Objective-C at build time, or still sit on macOS's deprecated `NSUserNotificationCenter`.
-Hark talks to each platform's own service directly, with no native build step.
+Hark talks to each platform's own service directly, with no native build step: D-Bus on Linux,
+and the Objective-C runtime called from C# on macOS.
 
 | Platform | Service | Status |
 | --- | --- | --- |
 | Linux / BSD | `org.freedesktop.Notifications` over D-Bus | **Working** |
 | Windows 10+ | WinRT toast notifications via COM | Planned |
-| macOS 11+ | `UNUserNotificationCenter` via the Objective-C runtime | Planned |
+| macOS 11+ | `UNUserNotificationCenter` via the Objective-C runtime | **Working** |
 | Flatpak | `org.freedesktop.portal.Notification` | Planned |
 
 Platforms without a backend get a manager whose `IsSupported` is `false` and whose
@@ -61,6 +62,22 @@ Events are raised on a background thread here.
 - **`Body` is plain text.** Hark escapes it for servers that parse markup.
 - **`ActivationToken`** (Wayland) is what lets a compositor raise your window when the user clicks.
 
+## macOS
+
+macOS only delivers notifications to an app running from a **signed `.app` bundle** with a
+`CFBundleIdentifier`. `dotnet run` and `dotnet MyApp.dll` are not bundles, so there the manager
+reports unsupported (with that reason) rather than crashing. Ad-hoc signing (`codesign --sign -`)
+is enough on the machine that built it. `AppIdentity.AppId` is not used on macOS: the bundle's
+identifier is.
+
+The first `CreateAsync` shows the system permission prompt. macOS remembers a refusal per bundle
+id and does not prompt again, so a refused app has to be switched on in System Settings >
+Notifications; `UnsupportedReason` says so.
+
+Not available on macOS: `Expiration` (no per-notification timeout) and `ActivationToken`.
+`Urgency.Critical` maps to time-sensitive, which needs the time-sensitive entitlement to break
+through Focus.
+
 ## Dependencies
 
 The Linux backend uses `Tmds.DBus.Protocol`, pinned to the version Avalonia 12 itself references,
@@ -74,6 +91,13 @@ property has a control, and every call and event goes into a log.
 
 ```bash
 dotnet run --project demos/Hark.Sample
+```
+
+On macOS the build also lays the output out as a signed `Hark Sample.app` next to the binaries,
+because macOS will not notify an unbundled process:
+
+```bash
+open "demos/Hark.Sample/bin/Debug/net10.0/Hark Sample.app"
 ```
 
 On a platform without a backend it opens and says why it cannot show notifications.
