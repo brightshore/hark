@@ -99,9 +99,12 @@ internal sealed unsafe class ToastPlatform : IToastPlatform
                     statics, appId.Handle, &notifier), "CreateToastNotifierWithId");
             }
 
+            // Advisory only. Windows answers 0x80070490 (element not found) here for an AUMID it has
+            // no shortcut for, even where Show then works, so only a definite "disabled" is a refusal.
+            // Anything else is left for Show to answer.
             int setting;
-            WinRT.Check(((delegate* unmanaged[Stdcall]<IntPtr, int*, int>)WinRT.Slot(notifier, Notifier_get_Setting))(notifier, &setting), "ToastNotifier.Setting");
-            if (setting != 0)
+            var settingResult = ((delegate* unmanaged[Stdcall]<IntPtr, int*, int>)WinRT.Slot(notifier, Notifier_get_Setting))(notifier, &setting);
+            if (settingResult >= 0 && setting != 0)
             {
                 unsupportedReason = setting switch
                 {
