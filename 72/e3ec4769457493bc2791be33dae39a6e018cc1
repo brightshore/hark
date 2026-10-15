@@ -1,0 +1,35 @@
+demos/Hark.Sample/App.axaml
+  s_299385e015fd74::t_b8d805d898a7c3 1-8
+Hark.slnx
+  s_299385e015fd74::t_b8d805d898a7c3 6-8
+demos/Hark.Sample/Hark.Sample.csproj
+  s_299385e015fd74::t_b8d805d898a7c3 1-17
+README.md
+  ai_agent 70-80
+demos/Hark.Sample/Program.cs
+  s_299385e015fd74::t_b8d805d898a7c3 1-18
+demos/Hark.Sample/MainWindow.axaml
+  s_299385e015fd74::t_b8d805d898a7c3 1-25,27-28,30-32,34-36,38-62
+  s_299385e015fd74::t_9d35512ac74643 26,29,33,37
+demos/Hark.Sample/App.axaml.cs
+  s_299385e015fd74::t_b8d805d898a7c3 1-17
+demos/Hark.Sample/MainWindow.axaml.cs
+  s_299385e015fd74::t_f6fda3fe5c6781 136-138
+  s_299385e015fd74::t_b8d805d898a7c3 1-135,139-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "72e3ec4769457493bc2791be33dae39a6e018cc1",
+  "prompts": {},
+  "sessions": {
+    "s_299385e015fd74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e67983ba-4c16-4ab0-a83d-131794d0805e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "John Campion Jr <john@brightshore.io>"
+    }
+  }
+}
