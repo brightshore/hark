@@ -1,0 +1,24 @@
+{
+  "$schema": "https://rigsmith.dev/schemas/changeset-config.json",
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "brightshore/hark"
+    }
+  ],
+  "baseBranch": "main",
+  "access": "public",
+  "updateInternalDependencies": "patch",
+  "tagTemplate": "v${version}",
+  "paths": [
+    "src"
+  ],
+  "ignore": [],
+  "linked": [],
+  "fixed": [],
+  "dotnet": {
+    "sourcePath": "src",
+    "packageSource": "https://api.nuget.org/v3/index.json",
+    "oidc": "off"
+  }
+}
