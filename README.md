@@ -67,6 +67,17 @@ The Linux backend uses `Tmds.DBus.Protocol`, pinned to the version Avalonia 12 i
 so an Avalonia app ends up with one copy and one set of expectations. Hark targets Avalonia 12;
 Avalonia 11 pins an older, API-incompatible `Tmds.DBus.Protocol`.
 
+## Sample app
+
+`demos/Hark.Sample` is a small Avalonia app for trying a backend by hand: every `Notification`
+property has a control, and every call and event goes into a log.
+
+```bash
+dotnet run --project demos/Hark.Sample
+```
+
+On a platform without a backend it opens and says why it cannot show notifications.
+
 ## Building
 
 ```bash
