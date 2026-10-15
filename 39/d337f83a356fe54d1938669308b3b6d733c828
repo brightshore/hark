@@ -1,0 +1,49 @@
+src/Hark/Hark.csproj
+  s_299385e015fd74::t_bf0e65f57fa2f6 4-6
+src/Hark/MacOS/UserNotificationCenter.cs
+  s_299385e015fd74::t_3061fe8f2d32c3 1-284
+src/Hark/MacOS/ObjCBlock.cs
+  s_299385e015fd74::t_9f52e8acd895d4 1-121
+src/Hark/MacOS/IUserNotificationCenter.cs
+  s_299385e015fd74::t_b312803fab22f3 10-14
+  s_299385e015fd74::t_b78a7365a1bf68 1-9,15-54
+src/Hark/MacOS/MacNotificationManager.cs
+  s_299385e015fd74::t_b5db70db965a97 1-62,66,69-172
+  s_299385e015fd74::t_8909ef6b1f26ea 63-65,67-68
+tests/Hark.Tests/FakeUserNotificationCenter.cs
+  s_299385e015fd74::t_6ba446515018f9 1-27
+tests/Hark.Tests/MacNotificationManagerTests.cs
+  s_299385e015fd74::t_8909ef6b1f26ea 34-35
+  s_299385e015fd74::t_6ba446515018f9 1-33,36-150
+tests/Hark.Tests/PlatformSelectionTests.cs
+  s_299385e015fd74::t_6ba446515018f9 1-37
+src/Hark/Linux/FreeDesktopNotificationManager.cs
+  s_299385e015fd74::t_13d28a5779b88e 14,98
+demos/Hark.Sample/Hark.Sample.csproj
+  s_299385e015fd74::t_1f2248c2f2f49a 19-22
+src/Hark/NotificationValidation.cs
+  s_299385e015fd74::t_13d28a5779b88e 1-36
+src/Hark/NotificationManager.cs
+  s_299385e015fd74::t_bf0e65f57fa2f6 2,24-27
+src/Hark/MacOS/ObjC.cs
+  s_299385e015fd74::t_68c21c460c9505 65,67,69,71,74
+  s_299385e015fd74::t_46838b966be677 1-64,66,68,70,72-73,75-191
+README.md
+  s_299385e015fd74::t_8909ef6b1f26ea 7-8,14,65-80,96-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "39d337f83a356fe54d1938669308b3b6d733c828",
+  "prompts": {},
+  "sessions": {
+    "s_299385e015fd74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e67983ba-4c16-4ab0-a83d-131794d0805e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "John Campion Jr <john@brightshore.io>"
+    }
+  }
+}
