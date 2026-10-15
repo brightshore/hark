@@ -1,0 +1,21 @@
+demos/Hark.Sample/Hark.Sample.csproj
+  s_299385e015fd74::t_fded25cbe89005 18
+src/Hark/Windows/ToastPlatform.cs
+  s_299385e015fd74::t_b53022c0e0e1fc 102-104,106-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b0867ddce8774cfebff883e5748d81eb76661063",
+  "prompts": {},
+  "sessions": {
+    "s_299385e015fd74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e67983ba-4c16-4ab0-a83d-131794d0805e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "John Campion Jr <john@brightshore.io>"
+    }
+  }
+}
