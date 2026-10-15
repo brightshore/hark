@@ -19,10 +19,23 @@
     <Copyright>Copyright © John Campion Jr</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageProjectUrl>https://github.com/brightshore/hark</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/brightshore/hark</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!-- SourceLink (built into the SDK for GitHub): debuggers step into the exact source on GitHub.
+         Symbols ship as a .snupkg next to each package. ContinuousIntegrationBuild makes CI builds
+         deterministic, with paths normalised. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages</PackageOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" Condition="'$(IsPackable)' == 'true'" />
+    <None Include="$(MSBuildThisFileDirectory)build/icon.png" Pack="true" PackagePath="\" Visible="false" Condition="'$(IsPackable)' == 'true'" />
   </ItemGroup>
 </Project>
