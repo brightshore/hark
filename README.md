@@ -10,7 +10,7 @@ and the Objective-C runtime called from C# on macOS.
 | Platform | Service | Status |
 | --- | --- | --- |
 | Linux / BSD | `org.freedesktop.Notifications` over D-Bus | **Working** |
-| Windows 10+ | WinRT toast notifications via COM | Planned |
+| Windows 10 1809+ | WinRT toasts through raw COM | **In progress** |
 | macOS 11+ | `UNUserNotificationCenter` via the Objective-C runtime | **Working** |
 | Flatpak | `org.freedesktop.portal.Notification` | Planned |
 
@@ -77,6 +77,19 @@ Notifications; `UnsupportedReason` says so.
 Not available on macOS: `Expiration` (no per-notification timeout) and `ActivationToken`.
 `Urgency.Critical` maps to time-sensitive, which needs the time-sensitive entitlement to break
 through Focus.
+
+## Windows
+
+Toasts go through WinRT called directly over COM: no UWP toolkit, no CsWinRT projection, and no
+Windows-only target framework, so a plain `net10.0` app gets the backend. An unpackaged app has no
+package identity, so on first use Hark sets the process's AppUserModelID to `AppIdentity.AppId` and
+registers it for the current user under `HKCU\Software\Classes\AppUserModelId`, with
+`DisplayName` and `IconPath`. No shortcut and no admin rights are needed.
+
+Clicks are delivered while the app is running, including from Notification Center. A click after
+the app has exited needs a COM activator, which is not registered yet. Not available on Windows:
+`Expiration` and `ActivationToken`. `Urgency.Low` skips the popup and goes straight to Notification
+Center; `Critical` uses the `urgent` scenario (Windows 11).
 
 ## Dependencies
 

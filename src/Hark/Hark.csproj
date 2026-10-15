@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Description>Native OS notifications for .NET desktop apps: freedesktop D-Bus on Linux, UNUserNotificationCenter on macOS, with Windows to follow. No UI framework dependency.</Description>
-    <!-- The macOS backend calls the Objective-C runtime through function pointers. -->
+    <Description>Native OS notifications for .NET desktop apps: freedesktop D-Bus on Linux, UNUserNotificationCenter on macOS, toasts on Windows. No UI framework dependency.</Description>
+    <!-- The macOS and Windows backends call the Objective-C runtime and WinRT through function pointers. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageTags>notifications;toast;desktop;dbus;freedesktop;linux;windows;macos</PackageTags>
   </PropertyGroup>

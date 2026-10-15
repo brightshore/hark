@@ -1,5 +1,6 @@
 using Hark.Linux;
 using Hark.MacOS;
+using Hark.Windows;
 
 namespace Hark;
 
@@ -24,7 +25,10 @@ public static class NotificationManager
         if (OperatingSystem.IsMacOS())
             return await MacNotificationManager.CreateAsync(cancellationToken).ConfigureAwait(false);
 
-        // The Windows backend is not written yet. Saying so beats a silent no-op.
+        if (OperatingSystem.IsWindows())
+            return WindowsNotificationManager.Create(identity);
+
+        // Anything else has no notification service Hark knows. Saying so beats a silent no-op.
         return new UnsupportedNotificationManager($"Hark has no notification backend for {System.Runtime.InteropServices.RuntimeInformation.OSDescription} yet.");
     }
 }
