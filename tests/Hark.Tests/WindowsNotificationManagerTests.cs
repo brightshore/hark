@@ -25,10 +25,10 @@ public sealed class WindowsNotificationManagerTests
             Title = "Build <done> & green",
             Body = "\"all\" passed",
             ImagePath = image,
-        }));
+        }, "t:build"));
 
         xml.Name.LocalName.Should().Be("toast");
-        xml.Attribute("launch")!.Value.Should().Be(WindowsNotificationManager.DefaultArguments);
+        xml.Attribute("launch")!.Value.Should().Be(ToastArguments.Format("t:build", actionId: null));
         var binding = xml.Element("visual")!.Element("binding")!;
         binding.Attribute("template")!.Value.Should().Be("ToastGeneric");
         binding.Elements("text").Select(t => t.Value).Should().Equal("Build <done> & green", "\"all\" passed");
@@ -47,12 +47,14 @@ public sealed class WindowsNotificationManagerTests
             Actions = [new("reply", "Reply"), new("mute", "Mute")],
             Silent = true,
             Urgency = NotificationUrgency.Critical,
-        }));
+        }, "g:1"));
 
         xml.Element("visual")!.Element("binding")!.Elements("text").Should().ContainSingle();
         xml.Element("actions")!.Elements("action")
             .Select(a => (a.Attribute("content")!.Value, a.Attribute("arguments")!.Value, a.Attribute("activationType")!.Value))
-            .Should().Equal(("Reply", "hark:action:reply", "foreground"), ("Mute", "hark:action:mute", "foreground"));
+            .Should().Equal(
+                ("Reply", ToastArguments.Format("g:1", "reply"), "foreground"),
+                ("Mute", ToastArguments.Format("g:1", "mute"), "foreground"));
         xml.Element("audio")!.Attribute("silent")!.Value.Should().Be("true");
         xml.Attribute("scenario")!.Value.Should().Be("urgent");
     }
@@ -96,9 +98,9 @@ public sealed class WindowsNotificationManagerTests
         var activations = new List<NotificationActivatedEventArgs>();
         manager.Activated += (_, e) => activations.Add(e);
 
-        platform.Sink!.OnActivated(body.Id, WindowsNotificationManager.DefaultArguments);
-        platform.Sink.OnActivated(button.Id, "hark:action:reply");
-        platform.Sink.OnActivated(button.Id, "hark:action:reply");
+        platform.Sink!.OnActivated(ToastArguments.Format(body.Id, null), fromActivator: false);
+        platform.Sink.OnActivated(ToastArguments.Format(button.Id, "reply"), fromActivator: true);
+        platform.Sink.OnActivated(ToastArguments.Format(button.Id, "reply"), fromActivator: false);
 
         activations.Select(a => (a.Handle, a.ActionId)).Should().Equal((body, (string?)null), (button, "reply"));
     }
@@ -114,7 +116,7 @@ public sealed class WindowsNotificationManagerTests
         manager.Activated += (_, e) => activations.Add(e);
 
         platform.Sink!.OnDismissed(handle.Id, 2);
-        platform.Sink.OnActivated(handle.Id, WindowsNotificationManager.DefaultArguments);
+        platform.Sink.OnActivated(ToastArguments.Format(handle.Id, null), fromActivator: true);
 
         closes.Should().BeEmpty();
         activations.Should().ContainSingle("a click from Notification Center still counts");
@@ -161,11 +163,46 @@ public sealed class WindowsNotificationManagerTests
         await manager.CloseAsync(handle);
         await manager.CloseAsync(handle);
         platform.Sink!.OnDismissed(handle.Id, 1);
-        platform.Sink.OnActivated("g:not-ours", WindowsNotificationManager.DefaultArguments);
+        platform.Sink.OnActivated(ToastArguments.Format("g:not-ours", null), fromActivator: false);
 
         platform.Hidden.Should().Equal(handle.Id, handle.Id);
         raised.Should().ContainSingle().Which.Should().BeOfType<NotificationClosedEventArgs>()
             .Which.Reason.Should().Be(NotificationCloseReason.ClosedByApp);
+    }
+
+    [TestMethod]
+    public void The_activator_reports_toasts_from_an_earlier_run_with_the_handle_that_run_had()
+    {
+        var (manager, platform) = Create();
+        var activations = new List<NotificationActivatedEventArgs>();
+        manager.Activated += (_, e) => activations.Add(e);
+
+        platform.Sink!.OnActivated(ToastArguments.Format("t:inbox", "reply"), fromActivator: true);
+        platform.Sink.OnActivated(ToastArguments.Format("g:0123", null), fromActivator: true);
+        // The in-process event never reports what this process did not show.
+        platform.Sink.OnActivated(ToastArguments.Format("g:4567", null), fromActivator: false);
+        // Arguments Hark did not write are not its toast.
+        platform.Sink.OnActivated("someone-elses-arguments", fromActivator: true);
+
+        activations.Select(a => (a.Handle, a.ActionId)).Should().Equal(
+            (new NotificationHandle("t:inbox", "inbox"), "reply"),
+            (new NotificationHandle("g:0123", null), (string?)null));
+    }
+
+    [TestMethod]
+    public void A_click_before_anyone_subscribes_is_delivered_to_the_first_subscriber_once()
+    {
+        var (manager, platform) = Create();
+
+        // An app started by a toast click: the activator calls in during startup.
+        platform.Sink!.OnActivated(ToastArguments.Format("t:launch", null), fromActivator: true);
+        var first = new List<NotificationActivatedEventArgs>();
+        var second = new List<NotificationActivatedEventArgs>();
+        manager.Activated += (_, e) => first.Add(e);
+        manager.Activated += (_, e) => second.Add(e);
+
+        first.Should().ContainSingle().Which.Handle.Should().Be(new NotificationHandle("t:launch", "launch"));
+        second.Should().BeEmpty();
     }
 
     [TestMethod]

@@ -86,8 +86,11 @@ package identity, so on first use Hark sets the process's AppUserModelID to `App
 registers it for the current user under `HKCU\Software\Classes\AppUserModelId`, with
 `DisplayName` and `IconPath`. No shortcut and no admin rights are needed.
 
-Clicks are delivered while the app is running, including from Notification Center. A click after
-the app has exited needs a COM activator, which is not registered yet. Not available on Windows:
+Clicks are delivered through a COM activator Hark registers for the app (per user, also in HKCU),
+so a click from Notification Center after the app has exited starts it again: Windows runs the app
+with `-Embedding` and the click arrives as soon as the app creates its manager. The `Activated`
+event holds such a click until the app subscribes, and gives it the handle the earlier run had.
+Not available on Windows:
 `Expiration` and `ActivationToken`. `Urgency.Low` skips the popup and goes straight to Notification
 Center; `Critical` uses the `urgent` scenario (Windows 11).
 

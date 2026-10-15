@@ -34,6 +34,23 @@ public sealed class PlatformSelectionTests
     /// A runner session that cannot do toasts at all reports inconclusive with Windows' own reason,
     /// which is in the log either way.
     /// </summary>
+    /// <summary>
+    /// The COM activator is what makes a click after exit start the app. A click cannot be made
+    /// in CI, so what is asserted is everything Windows needs to make that call: the class object
+    /// registered with COM, the CLSID's launch command, and the AUMID's link to the CLSID.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void AssertActivatorRegistered(Hark.Windows.WindowsNotificationManager manager, string appId)
+    {
+        manager.ActivatorUnavailableReason.Should().BeNull();
+        var clsid = Hark.Windows.ToastArguments.ActivatorClsid(appId).ToString("B");
+        using var aumid = Microsoft.Win32.Registry.CurrentUser.OpenSubKey($@"Software\Classes\AppUserModelId\{appId}");
+        aumid!.GetValue("CustomActivator").Should().Be(clsid);
+        using var server = Microsoft.Win32.Registry.CurrentUser.OpenSubKey($@"Software\Classes\CLSID\{clsid}\LocalServer32");
+        var command = (string)server!.GetValue(null)!;
+        command.Should().Contain(Path.GetFileName(Environment.ProcessPath!), "Windows must be able to start this very process");
+    }
+
     [TestMethod]
     public async Task On_Windows_a_toast_can_be_shown_and_closed_through_the_real_api()
     {
@@ -59,6 +76,8 @@ public sealed class PlatformSelectionTests
         await manager.CloseAsync(handle);
 
         File.Exists(SampleImage).Should().BeTrue("the toast must have carried a real image file");
+        if (OperatingSystem.IsWindows()) // always true here; the analyzer cannot see through Assert.Inconclusive
+            AssertActivatorRegistered((Hark.Windows.WindowsNotificationManager)manager, "dev.brightshore.Hark.Tests");
         handle.Id.Should().Be("t:suite");
         closes.Should().ContainSingle().Which.Reason.Should().Be(NotificationCloseReason.ClosedByApp);
     }

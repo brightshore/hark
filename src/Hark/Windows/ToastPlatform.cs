@@ -18,8 +18,12 @@ namespace Hark.Windows;
 /// <para>
 /// Events arrive on each toast object, so the object is kept alive while the toast can still be
 /// clicked: on screen, or in Notification Center after it times out. It is released when the
-/// toast is activated, dismissed, hidden or replaced. A click from Notification Center after the
-/// app has exited needs a COM activator, which this backend does not register yet.
+/// toast is activated, dismissed, hidden or replaced.
+/// </para>
+/// <para>
+/// Clicks come through <see cref="ToastActivator"/> when it registers, which also covers clicks
+/// after the app has exited; the toast's own Activated event is then not subscribed, so each
+/// click arrives exactly once. Without the activator, that event is the fallback.
 /// </para>
 /// </remarks>
 [SupportedOSPlatform("windows")]
@@ -67,6 +71,10 @@ internal sealed unsafe class ToastPlatform : IToastPlatform
     /// <summary>A live toast and its COM identity (its IUnknown), which is what events are matched on.</summary>
     private readonly record struct Tracked(IntPtr Toast, IntPtr Identity);
     private IToastEventSink? _sink;
+    private bool _activatorActive;
+
+    /// <summary>Why clicks after exit will not reach the app, or null when the activator is registered.</summary>
+    public string? ActivatorUnavailableReason { get; private set; }
 
     private ToastPlatform(string appId, IntPtr notifier, IntPtr history, IntPtr toastFactory)
     {
@@ -123,6 +131,11 @@ internal sealed unsafe class ToastPlatform : IToastPlatform
 
             var platform = new ToastPlatform(identity.AppId, notifier, history, factory);
             notifier = history = factory = 0; // owned by the platform now
+
+            platform.ActivatorUnavailableReason = ToastActivator.Register(identity.AppId, platform.OnActivatorInvoked);
+            platform._activatorActive = platform.ActivatorUnavailableReason is null;
+            if (!platform._activatorActive)
+                System.Diagnostics.Trace.TraceWarning($"Hark: toast clicks will only reach the app while it runs. {platform.ActivatorUnavailableReason}");
             return platform;
         }
         catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException or IOException)
@@ -182,7 +195,8 @@ internal sealed unsafe class ToastPlatform : IToastPlatform
                 WinRT.Check(((delegate* unmanaged[Stdcall]<IntPtr, byte, int>)WinRT.Slot(toast2, Toast2_put_SuppressPopup))(toast2, 1), "ToastNotification.SuppressPopup");
 
             var toastTag = request.Tag;
-            Subscribe(toast, Toast_add_Activated, ToastEventIids.Activated, (sender, args) => OnActivated(toastTag, sender, args));
+            if (!_activatorActive)
+                Subscribe(toast, Toast_add_Activated, ToastEventIids.Activated, (sender, args) => OnActivated(toastTag, sender, args));
             Subscribe(toast, Toast_add_Dismissed, ToastEventIids.Dismissed, (sender, args) => OnDismissed(toastTag, sender, args));
             Subscribe(toast, Toast_add_Failed, ToastEventIids.Failed, (sender, args) => OnFailed(toastTag, sender, args));
 
@@ -270,7 +284,20 @@ internal sealed unsafe class ToastPlatform : IToastPlatform
             }
         }
         ForgetIfCurrent(tag, IdentityOf(sender));
-        Volatile.Read(ref _sink)?.OnActivated(tag, arguments);
+        Volatile.Read(ref _sink)?.OnActivated(arguments, fromActivator: false);
+    }
+
+    /// <summary>A click delivered by the COM activator, on its apartment thread.</summary>
+    private void OnActivatorInvoked(string arguments)
+    {
+        if (ToastArguments.Parse(arguments) is { } parsed)
+        {
+            Tracked tracked;
+            lock (_gate)
+                _toasts.Remove(parsed.ToastTag, out tracked);
+            WinRT.Release(tracked.Toast);
+        }
+        Volatile.Read(ref _sink)?.OnActivated(arguments, fromActivator: true);
     }
 
     private void OnDismissed(string tag, IntPtr sender, IntPtr args)

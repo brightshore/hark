@@ -8,6 +8,7 @@ internal sealed class FakeToastPlatform : IToastPlatform
     public List<ToastRequest> Shown { get; } = [];
     public List<string> Hidden { get; } = [];
     public IToastEventSink? Sink { get; private set; }
+    public string? ActivatorUnavailableReason => null;
 
     public void Show(ToastRequest request) => Shown.Add(request);
 
