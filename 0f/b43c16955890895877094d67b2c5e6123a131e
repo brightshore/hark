@@ -1,0 +1,41 @@
+src/Hark/Windows/IToastPlatform.cs
+  s_299385e015fd74::t_1afe6eeda44ad3 18-20
+  s_299385e015fd74::t_5f6f475e62a074 26-31
+tests/Hark.Tests/ToastArgumentsTests.cs
+  s_299385e015fd74::t_cf2d6dfa07af91 1-41
+tests/Hark.Tests/WindowsNotificationManagerTests.cs
+  s_299385e015fd74::t_cf2d6dfa07af91 28,31,50,55-57,101-103,119,166,173-205
+README.md
+  ai_agent 89-93
+src/Hark/Windows/WindowsNotificationManager.cs
+  s_299385e015fd74::t_5f6f475e62a074 34-35,47-72,100,136,146,158,168,170-172,174-175,178-190,192,195-196
+  s_299385e015fd74::t_1afe6eeda44ad3 44-46
+tests/Hark.Tests/FakeToastPlatform.cs
+  s_299385e015fd74::t_1afe6eeda44ad3 11
+src/Hark/Windows/ToastPlatform.cs
+  s_299385e015fd74::t_5f6f475e62a074 21-26,74-77,134-138,198-199,287-300
+tests/Hark.Tests/PlatformSelectionTests.cs
+  s_299385e015fd74::t_ce0692a386c4f4 79-80
+  s_299385e015fd74::t_1afe6eeda44ad3 37-53
+src/Hark/Windows/ToastArguments.cs
+  s_299385e015fd74::t_80103f35e1d048 1-63
+src/Hark/Windows/ToastActivator.cs
+  s_299385e015fd74::t_73f59a727db44d 1-105,109-218
+  s_299385e015fd74::t_e43305672b8e7f 106-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0fb43c16955890895877094d67b2c5e6123a131e",
+  "prompts": {},
+  "sessions": {
+    "s_299385e015fd74": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e67983ba-4c16-4ab0-a83d-131794d0805e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "John Campion Jr <john@brightshore.io>"
+    }
+  }
+}
