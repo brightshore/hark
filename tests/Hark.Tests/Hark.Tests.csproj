@@ -23,5 +23,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Hark\Hark.csproj" />
+    <ProjectReference Include="..\..\src\Hark.Avalonia\Hark.Avalonia.csproj" />
   </ItemGroup>
 </Project>

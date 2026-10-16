@@ -19,6 +19,11 @@ public static class NotificationManager
         ArgumentException.ThrowIfNullOrWhiteSpace(identity.AppId);
         ArgumentException.ThrowIfNullOrWhiteSpace(identity.DisplayName);
 
+        return await CreateGuardedAsync(() => CreateForPlatformAsync(identity, cancellationToken), cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async Task<INotificationManager> CreateForPlatformAsync(AppIdentity identity, CancellationToken cancellationToken)
+    {
         if (OperatingSystem.IsLinux() || OperatingSystem.IsFreeBSD())
             return await FreeDesktopNotificationManager.CreateAsync(identity, cancellationToken).ConfigureAwait(false);
 
@@ -30,5 +35,28 @@ public static class NotificationManager
 
         // Anything else has no notification service Hark knows. Saying so beats a silent no-op.
         return new UnsupportedNotificationManager($"Hark has no notification backend for {System.Runtime.InteropServices.RuntimeInformation.OSDescription} yet.");
+    }
+
+    /// <summary>
+    /// The "never throws" promise, kept in one place: each backend turns the failures it knows into an
+    /// unsupported manager, and anything else it didn't foresee (a socket refused mid-connect, a COM or
+    /// Objective-C call failing in a way nobody has seen yet) becomes one here, with the error as the
+    /// reason. An app that awaits its manager once at startup (Hark.Avalonia caches it) must not hold a
+    /// faulted task for the rest of the run. Cancellation is still cancellation.
+    /// </summary>
+    internal static async Task<INotificationManager> CreateGuardedAsync(Func<Task<INotificationManager>> create, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await create().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new UnsupportedNotificationManager($"The notification service could not be started: {ex.GetType().Name}: {ex.Message}");
+        }
     }
 }

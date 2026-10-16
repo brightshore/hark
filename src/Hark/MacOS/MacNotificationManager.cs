@@ -34,6 +34,12 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
     private readonly Lock _gate = new();
     private readonly Dictionary<string, NotificationHandle> _live = new(StringComparer.Ordinal);
     private readonly Dictionary<string, MacCategory> _categories = new(StringComparer.Ordinal);
+    private readonly List<NotificationActivatedEventArgs> _pendingActivations = [];
+
+    /// <summary>Every identifier this run has shown — one short string per notification. What tells an earlier
+    /// run's notification from one of this run's that has already been answered.</summary>
+    private readonly HashSet<string> _shownThisRun = new(StringComparer.Ordinal);
+    private EventHandler<NotificationActivatedEventArgs>? _activated;
     private bool _disposed;
 
     private MacNotificationManager(IUserNotificationCenter center, TimeProvider time)
@@ -46,7 +52,32 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
     public string? UnsupportedReason => null;
     public NotificationCapabilities Capabilities => MacCapabilities;
 
-    public event EventHandler<NotificationActivatedEventArgs>? Activated;
+    /// <summary>
+    /// Activations that arrive before anyone subscribes are held and delivered to the first
+    /// subscriber, as on Windows: when a click launches the app, macOS hands that click to the
+    /// delegate during startup, before the app has awaited its manager and wired this event.
+    /// </summary>
+    public event EventHandler<NotificationActivatedEventArgs>? Activated
+    {
+        add
+        {
+            NotificationActivatedEventArgs[] pending;
+            lock (_gate)
+            {
+                _activated += value;
+                pending = [.. _pendingActivations];
+                _pendingActivations.Clear();
+            }
+            foreach (var activation in pending)
+                value?.Invoke(this, activation);
+        }
+        remove
+        {
+            lock (_gate)
+                _activated -= value;
+        }
+    }
+
     public event EventHandler<NotificationClosedEventArgs>? Closed;
 
     [SupportedOSPlatform("macos")]
@@ -107,7 +138,10 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
 
         var handle = new NotificationHandle(identifier, notification.Tag);
         lock (_gate)
+        {
             _live[identifier] = handle;
+            _shownThisRun.Add(identifier);
+        }
 
         // A replacement without an expiry must not inherit its predecessor's.
         if (notification.Expiration is { } expiration && expiration != Timeout.InfiniteTimeSpan)
@@ -163,21 +197,48 @@ internal sealed class MacNotificationManager : INotificationManager, IMacRespons
     void IMacResponseSink.OnResponse(string requestIdentifier, string actionIdentifier)
     {
         NotificationHandle? handle;
+        NotificationActivatedEventArgs? activation = null;
+        EventHandler<NotificationActivatedEventArgs>? handlers = null;
         lock (_gate)
         {
-            if (!_live.TryGetValue(requestIdentifier, out handle))
-                return;
             // Any response ends the notification on macOS: a click or a button removes it too.
-            _live.Remove(requestIdentifier);
+            if (!_live.Remove(requestIdentifier, out handle))
+            {
+                // Not live. If this run showed it, it has already been answered, closed or expired: a
+                // second response is not news. If not, it is an earlier run's: Notification Center keeps
+                // those, and a click on one launches the app and arrives here. This run has no handle for
+                // it, so it makes the one that run had, from the identifier, which carries the tag. Only
+                // for an identifier Hark makes: anything else is not this library's to report.
+                if (_shownThisRun.Contains(requestIdentifier) || !IsHarkIdentifier(requestIdentifier))
+                    return;
+                handle = new NotificationHandle(requestIdentifier, OriginalTag(requestIdentifier));
+            }
+
+            if (actionIdentifier != DismissActionIdentifier)
+            {
+                activation = new NotificationActivatedEventArgs(
+                    handle, actionIdentifier == DefaultActionIdentifier ? null : actionIdentifier, activationToken: null);
+                handlers = _activated;
+                if (handlers is null)
+                    _pendingActivations.Add(activation);
+            }
         }
         _expiry.Cancel(requestIdentifier);
 
-        if (actionIdentifier == DismissActionIdentifier)
+        if (activation is null)
             Closed?.Invoke(this, new NotificationClosedEventArgs(handle, NotificationCloseReason.Dismissed));
         else
-            Activated?.Invoke(this, new NotificationActivatedEventArgs(
-                handle, actionIdentifier == DefaultActionIdentifier ? null : actionIdentifier, activationToken: null));
+            handlers?.Invoke(this, activation);
     }
+
+    /// <summary>An identifier <see cref="ShowAsync"/> makes: a tag's, or a generated <c>Guid</c> in "N" form.</summary>
+    internal static bool IsHarkIdentifier(string identifier)
+        => identifier.StartsWith(TagIdentifierPrefix, StringComparison.Ordinal)
+           || (identifier.Length == 32 && Guid.TryParseExact(identifier, "N", out _));
+
+    /// <summary>The caller's tag behind an identifier, or null for a generated one.</summary>
+    internal static string? OriginalTag(string identifier)
+        => identifier.StartsWith(TagIdentifierPrefix, StringComparison.Ordinal) ? identifier[TagIdentifierPrefix.Length..] : null;
 
     private void Expire(NotificationHandle handle)
     {
