@@ -107,7 +107,7 @@ public sealed class MacNotificationManagerTests
     }
 
     [TestMethod]
-    public async Task A_dismissal_closes_and_responses_for_other_notifications_are_ignored()
+    public async Task A_dismissal_closes_and_responses_for_identifiers_hark_never_makes_are_ignored()
     {
         var (manager, center) = await CreateAsync();
         var handle = await manager.ShowAsync(new Notification { Title = "t" });
@@ -121,6 +121,70 @@ public sealed class MacNotificationManagerTests
 
         activations.Should().Be(0);
         closes.Should().ContainSingle().Which.Reason.Should().Be(NotificationCloseReason.Dismissed);
+    }
+
+    [TestMethod]
+    public async Task A_click_on_an_earlier_runs_notification_activates_with_the_handle_that_run_had()
+    {
+        // Notification Center outlives the app; a click on what an earlier run showed launches this one.
+        var (manager, center) = await CreateAsync();
+        var activations = new List<NotificationActivatedEventArgs>();
+        manager.Activated += (_, e) => activations.Add(e);
+        var generated = Guid.NewGuid().ToString("N");
+
+        center.Sink!.OnResponse(generated, MacNotificationManager.DefaultActionIdentifier);
+        center.Sink.OnResponse(MacNotificationManager.TagIdentifierPrefix + "build-42", "open");
+
+        activations.Select(a => (a.Handle, a.ActionId)).Should().Equal(
+            (new NotificationHandle(generated, null), (string?)null),
+            (new NotificationHandle(MacNotificationManager.TagIdentifierPrefix + "build-42", "build-42"), "open"));
+    }
+
+    [TestMethod]
+    public async Task An_answered_notification_of_this_run_is_not_mistaken_for_an_earlier_runs()
+    {
+        var (manager, center) = await CreateAsync();
+        var tagged = await manager.ShowAsync(new Notification { Title = "t", Tag = "build" });
+        var closed = await manager.ShowAsync(new Notification { Title = "t" });
+        await manager.CloseAsync(closed);
+        var activations = 0;
+        manager.Activated += (_, _) => activations++;
+
+        center.Sink!.OnResponse(tagged.Id, MacNotificationManager.DefaultActionIdentifier);
+        center.Sink.OnResponse(tagged.Id, MacNotificationManager.DefaultActionIdentifier);
+        center.Sink.OnResponse(closed.Id, MacNotificationManager.DefaultActionIdentifier);
+
+        activations.Should().Be(1, "the tagged one once; a closed one of this run is not resurrected");
+    }
+
+    [TestMethod]
+    public async Task A_dismissal_of_an_earlier_runs_notification_closes_it()
+    {
+        var (manager, center) = await CreateAsync();
+        var closes = new List<NotificationClosedEventArgs>();
+        manager.Closed += (_, e) => closes.Add(e);
+
+        center.Sink!.OnResponse(MacNotificationManager.TagIdentifierPrefix + "t", MacNotificationManager.DismissActionIdentifier);
+
+        closes.Should().ContainSingle().Which.Handle.Tag.Should().Be("t");
+    }
+
+    [TestMethod]
+    public async Task A_click_that_arrives_before_anyone_subscribes_is_held_for_the_first_subscriber()
+    {
+        // The click that launched the app reaches the delegate during startup, before the app has
+        // awaited its manager and wired Activated.
+        var (manager, center) = await CreateAsync();
+        var handle = await manager.ShowAsync(new Notification { Title = "t" });
+        center.Sink!.OnResponse(handle.Id, MacNotificationManager.DefaultActionIdentifier);
+
+        var first = new List<NotificationActivatedEventArgs>();
+        var second = new List<NotificationActivatedEventArgs>();
+        manager.Activated += (_, e) => first.Add(e);
+        manager.Activated += (_, e) => second.Add(e);
+
+        first.Should().ContainSingle().Which.Handle.Should().Be(handle);
+        second.Should().BeEmpty("a held click is delivered once, to whoever subscribes first");
     }
 
     [TestMethod]

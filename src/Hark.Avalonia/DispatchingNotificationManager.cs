@@ -13,6 +13,8 @@ public sealed class DispatchingNotificationManager(INotificationManager inner) :
     private EventHandler<NotificationClosedEventArgs>? _closed;
     private readonly Lock _gate = new();
     private bool _forwarding;
+    private EventHandler<NotificationActivatedEventArgs>? _forwardActivated;
+    private EventHandler<NotificationClosedEventArgs>? _forwardClosed;
 
     /// <inheritdoc />
     public bool IsSupported => _inner.IsSupported;
@@ -55,10 +57,24 @@ public sealed class DispatchingNotificationManager(INotificationManager inner) :
                 return;
             _forwarding = true;
         }
-        _inner.Activated += (_, e) => Dispatcher.UIThread.Post(() => _activated?.Invoke(this, e));
-        _inner.Closed += (_, e) => Dispatcher.UIThread.Post(() => _closed?.Invoke(this, e));
+        _forwardActivated = (_, e) => Dispatcher.UIThread.Post(() => _activated?.Invoke(this, e));
+        _forwardClosed = (_, e) => Dispatcher.UIThread.Post(() => _closed?.Invoke(this, e));
+        _inner.Activated += _forwardActivated;
+        _inner.Closed += _forwardClosed;
     }
 
-    /// <inheritdoc />
-    public ValueTask DisposeAsync() => _inner.DisposeAsync();
+    /// <summary>Stops forwarding, then disposes the inner manager: nothing reaches this wrapper's handlers after.</summary>
+    public ValueTask DisposeAsync()
+    {
+        lock (_gate)
+        {
+            if (_forwardActivated is not null) _inner.Activated -= _forwardActivated;
+            if (_forwardClosed is not null) _inner.Closed -= _forwardClosed;
+            _forwardActivated = null;
+            _forwardClosed = null;
+            _activated = null;
+            _closed = null;
+        }
+        return _inner.DisposeAsync();
+    }
 }
