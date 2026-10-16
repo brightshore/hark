@@ -1,5 +1,11 @@
 # Hark
 
+## 0.1.1
+
+### 🩹 Fixes
+
+- A click on a macOS notification shown by an earlier run of your app now reaches the app. Clicking one in Notification Center relaunches the app, and `Activated` fires with the handle that run had, tag included, instead of the click being dropped. A click that arrives before you subscribe to `Activated` is held for your first handler, as on Windows. `NotificationManager.CreateAsync` no longer throws on an unexpected platform failure: you get a manager whose `IsSupported` is false, with the error as `UnsupportedReason`. With Hark.Avalonia, this means `AvaloniaNotifications.Manager` can't fail for the rest of the run. Disposing the Avalonia wrapper now also detaches it from the manager it wraps.
+
 ## 0.1.0
 
 ### 🚀 Enhancements
