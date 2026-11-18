@@ -8,6 +8,8 @@ namespace Hark.Sample;
 public sealed partial class MainWindow : Window
 {
     private INotificationManager? _notifications;
+    private IBadgeManager? _badge;
+    private WindowAttention? _attention;
     private NotificationHandle? _last;
     private int _shown;
 
@@ -21,7 +23,12 @@ public sealed partial class MainWindow : Window
         if (File.Exists(sampleImage))
             ImageBox.Text = sampleImage;
 
-        Opened += async (_, _) => await ConnectAsync();
+        Opened += async (_, _) =>
+        {
+            ConnectAttention();
+            await ConnectBadgeAsync();
+            await ConnectAsync();
+        };
     }
 
     private async Task ConnectAsync()
@@ -57,6 +64,116 @@ public sealed partial class MainWindow : Window
             Activate();
         };
         _notifications.Closed += (_, e) => Write($"closed     #{e.Handle.Id}  reason={e.Reason}");
+    }
+
+    private async Task ConnectBadgeAsync()
+    {
+        _badge = await AvaloniaBadge.Manager;
+        if (!_badge.IsSupported)
+        {
+            BadgeStatusText.Text = $"Badge: not supported here. {_badge.UnsupportedReason}";
+            Write($"badge unsupported: {_badge.UnsupportedReason}");
+            return;
+        }
+
+        BadgeStatusText.Text = $"Badge: {_badge.Capabilities}";
+        Write($"badge, capabilities: {_badge.Capabilities}");
+        SetCountButton.IsEnabled = _badge.Capabilities.HasFlag(BadgeCapabilities.Count);
+        SetTextButton.IsEnabled = _badge.Capabilities.HasFlag(BadgeCapabilities.Text);
+        SetProgressButton.IsEnabled = HideProgressButton.IsEnabled = _badge.Capabilities.HasFlag(BadgeCapabilities.Progress);
+        ClearBadgeButton.IsEnabled = true;
+    }
+
+    // Made here, on the UI thread, once the window has its native handle.
+    private void ConnectAttention()
+    {
+        _attention = new WindowAttention(this);
+        if (!_attention.IsSupported)
+        {
+            AttentionStatusText.Text = $"Attention: not supported here. {_attention.UnsupportedReason}";
+            Write($"attention unsupported: {_attention.UnsupportedReason}");
+            return;
+        }
+
+        AttentionStatusText.Text = $"Attention: {_attention.Capabilities}";
+        Write($"attention, capabilities: {_attention.Capabilities}");
+        RequestAttentionButton.IsEnabled = CancelAttentionButton.IsEnabled = true;
+    }
+
+    private async void OnSetCount(object? sender, RoutedEventArgs e)
+    {
+        if (!int.TryParse(BadgeBox.Text, NumberStyles.Integer, CultureInfo.CurrentCulture, out var count))
+        {
+            Write($"! '{BadgeBox.Text}' is not a count");
+            return;
+        }
+        await BadgeAsync($"count={count}", badge => badge.SetCountAsync(count));
+    }
+
+    private async void OnSetText(object? sender, RoutedEventArgs e)
+    {
+        var text = BadgeBox.Text;
+        await BadgeAsync($"text=\"{text}\"", badge => badge.SetTextAsync(text));
+    }
+
+    private async void OnSetProgress(object? sender, RoutedEventArgs e)
+    {
+        var progress = Math.Round(ProgressSlider.Value, 2);
+        await BadgeAsync($"progress={progress:0.00}", badge => badge.SetProgressAsync(progress));
+    }
+
+    private async void OnHideProgress(object? sender, RoutedEventArgs e)
+        => await BadgeAsync("progress hidden", badge => badge.SetProgressAsync(null));
+
+    private async void OnClearBadge(object? sender, RoutedEventArgs e)
+        => await BadgeAsync("cleared", badge => badge.ClearAsync());
+
+    private async Task BadgeAsync(string what, Func<IBadgeManager, Task> call)
+    {
+        if (_badge is null)
+            return;
+        try
+        {
+            await call(_badge);
+            Write($"badge      {what}");
+        }
+        catch (Exception ex)
+        {
+            Write($"! badge {what} failed: {ex.Message}");
+        }
+    }
+
+    private async void OnRequestAttention(object? sender, RoutedEventArgs e)
+    {
+        if (_attention is null)
+            return;
+        var level = (AttentionLevel)Math.Max(0, AttentionLevelBox.SelectedIndex);
+        Write($"attention  {level} in 3 s: switch to another app now");
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        try
+        {
+            _attention.Request(level);
+            Write($"attention  {level} requested");
+        }
+        catch (Exception ex)
+        {
+            Write($"! attention failed: {ex.Message}");
+        }
+    }
+
+    private void OnCancelAttention(object? sender, RoutedEventArgs e)
+    {
+        if (_attention is null)
+            return;
+        try
+        {
+            _attention.Cancel();
+            Write("attention  cancelled");
+        }
+        catch (Exception ex)
+        {
+            Write($"! cancel failed: {ex.Message}");
+        }
     }
 
     private async void OnShow(object? sender, RoutedEventArgs e) => await ShowAsync(BuildNotification(TitleBox.Text));
