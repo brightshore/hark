@@ -128,8 +128,9 @@ says why.
 
 - **macOS**: `NSApp.dockTile.badgeLabel`, any short text. Unlike notifications, it **works from an
   unbundled process** (`dotnet run` included): all it needs is the app's `NSApplication`, so create
-  the badge once the UI framework has started (`UseBadge` does). Called off the main thread, the
-  change is handed to the main run loop.
+  the badge once the UI framework has started (`UseBadge` does). Every change, from any thread, is
+  queued on the main run loop, so changes apply in the order they were made: the returned task
+  completes when the change is queued, not when the Dock shows it.
 - **Windows**: `ITaskbarList3::SetOverlayIcon`, over raw COM like the toasts. An overlay is 16 pixels
   at 100% scaling, so Windows gets a count and no text: Hark draws it, white on a red disc, at the
   window's scaling, and anything over 99 reads "99+". It goes on a window's taskbar button: with

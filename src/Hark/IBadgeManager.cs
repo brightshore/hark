@@ -8,6 +8,11 @@ namespace Hark;
 /// The badge belongs to the app, not to a notification: it stays until the app changes or clears it,
 /// and goes when the app exits. Check <see cref="Capabilities"/> before calling a method, because
 /// what the icon can show differs by platform.
+/// <para>
+/// Changes apply in the order they are made, from any thread. On macOS each one is queued on the main
+/// run loop, so the returned task completes when the change is queued, and the Dock shows it on the
+/// loop's next turn. On Windows the task completes once the taskbar has been told.
+/// </para>
 /// </remarks>
 public interface IBadgeManager : IAsyncDisposable
 {

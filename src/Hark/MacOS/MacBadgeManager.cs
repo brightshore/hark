@@ -7,9 +7,10 @@ namespace Hark.MacOS;
 /// The Dock tile's badge, <c>NSApp.dockTile.badgeLabel</c>: any short text, a count included.
 /// </summary>
 /// <remarks>
-/// Works from an unbundled process, unlike notifications. Called off the main thread, the change is
-/// handed to the main run loop, so it shows once that loop next runs. No progress: the Dock draws
-/// one only for a custom tile view.
+/// Works from an unbundled process, unlike notifications. Every change, from any thread, is queued on
+/// the main run loop (see <see cref="DockTile"/>), so changes apply in the order they were made, and the
+/// returned task completes when the change is queued, not when the Dock shows it. No progress: the
+/// Dock draws one only for a custom tile view.
 /// </remarks>
 internal sealed class MacBadgeManager : IBadgeManager
 {

@@ -14,6 +14,33 @@ internal sealed class FakeDockTile : IDockTile
     public void SetBadgeLabel(string? label) => Labels.Add(label);
 }
 
+/// <summary>
+/// AppKit's side of the Dock tile, with a main run loop the test turns by hand. A label set now lands
+/// at once; a queued one lands when the loop turns, after everything queued before it.
+/// </summary>
+internal sealed class FakeAppKitDockTile : IAppKitDockTile
+{
+    private readonly Queue<string?> _runLoop = new();
+
+    /// <summary>Whether the next call is made on the main thread; the test says so before each call.</summary>
+    public bool OnMainThread { get; set; }
+
+    /// <summary>Every label the tile has shown, in the order it showed them.</summary>
+    public List<string?> Shown { get; } = [];
+
+    public bool IsMainThread => OnMainThread;
+
+    public void SetBadgeLabelNow(string? label) => Shown.Add(label);
+
+    public void QueueBadgeLabel(string? label) => _runLoop.Enqueue(label);
+
+    public void TurnRunLoop()
+    {
+        while (_runLoop.TryDequeue(out var label))
+            Shown.Add(label);
+    }
+}
+
 /// <summary>Records every LauncherEntry update the Linux badge manager sends.</summary>
 internal sealed class FakeLauncherEntryBus : ILauncherEntryBus
 {

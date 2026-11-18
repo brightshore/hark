@@ -54,6 +54,39 @@ public sealed class BadgeManagerTests
         tile.Labels.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A count set on a pool thread (after a ConfigureAwait(false), say) is queued on the main run loop.
+    /// A clear made afterwards on the main thread must not overtake it, or the count lands last and the
+    /// Dock keeps a badge the app has cleared.
+    /// </summary>
+    [TestMethod]
+    public async Task On_macOS_a_main_thread_clear_made_after_an_off_thread_count_is_applied_last()
+    {
+        var appKit = new FakeAppKitDockTile();
+        var badge = MacBadgeManager.Create(new DockTile(appKit));
+
+        appKit.OnMainThread = false;
+        await badge.SetCountAsync(5);
+        appKit.OnMainThread = true;
+        await badge.ClearAsync();
+        appKit.TurnRunLoop();
+
+        appKit.Shown.Should().Equal("5", null);
+    }
+
+    [TestMethod]
+    public async Task On_macOS_a_change_made_on_the_main_thread_is_queued_too()
+    {
+        var appKit = new FakeAppKitDockTile { OnMainThread = true };
+        var badge = MacBadgeManager.Create(new DockTile(appKit));
+
+        await badge.SetCountAsync(2);
+
+        appKit.Shown.Should().BeEmpty("the task completes when the change is queued, before the run loop shows it");
+        appKit.TurnRunLoop();
+        appKit.Shown.Should().Equal("2");
+    }
+
     [TestMethod]
     public async Task A_negative_count_is_refused_before_anything_is_shown()
     {
