@@ -1,6 +1,7 @@
 # Hark
 
-Native OS notifications for .NET desktop apps, with first-class Avalonia support.
+Native OS notifications for .NET desktop apps, with first-class Avalonia support. Also a badge on
+the app's icon, and a way to ask the user to look at a window.
 
 Avalonia has no notification API of its own. The existing libraries either ship a UWP toolkit,
 compile Objective-C at build time, or still sit on macOS's deprecated `NSUserNotificationCenter`.
@@ -19,8 +20,9 @@ Platforms without a backend get a manager whose `IsSupported` is `false` and who
 
 ## Packages
 
-- **Hark**: the API and every backend. No UI framework dependency, AOT-compatible.
-- **Hark.Avalonia**: `AppBuilder.UseNotifications(...)`, plus event delivery on Avalonia's UI thread.
+- **Hark**: the API and every backend, the app badge included. No UI framework dependency, AOT-compatible.
+- **Hark.Avalonia**: `AppBuilder.UseNotifications(...)` and `UseBadge(...)`, event delivery on Avalonia's
+  UI thread, and `WindowAttention`.
 
 ## Avalonia
 
@@ -97,6 +99,72 @@ event holds such a click until the app subscribes, and gives it the handle the e
 exits; while the app runs it closes as `Expired`. Not available on Windows: `ActivationToken`. `Urgency.Low` skips the popup and goes straight to Notification
 Center; `Critical` uses the `urgent` scenario (Windows 11).
 
+## App badge
+
+A count or a short label on the app's icon. It belongs to the app, not to a notification: it stays
+until the app changes or clears it.
+
+| Platform | Where it shows | Count | Text | Progress |
+| --- | --- | --- | --- | --- |
+| macOS | The Dock tile's badge | Yes | Yes | No |
+| Windows | An overlay icon on the taskbar button, and its progress bar | Yes | No | Yes |
+| Linux / BSD | The launcher entry (`com.canonical.Unity.LauncherEntry`) | Yes | No | Yes |
+
+```csharp
+// Avalonia: .UseBadge(identity) next to .UseNotifications(identity), then
+var badge = await AvaloniaBadge.Manager;
+// Elsewhere: await BadgeManager.CreateAsync(identity)
+
+if (badge.Capabilities.HasFlag(BadgeCapabilities.Count))
+    await badge.SetCountAsync(unread);     // 0 clears it
+if (badge.Capabilities.HasFlag(BadgeCapabilities.Progress))
+    await badge.SetProgressAsync(0.4);     // 0 to 1; null hides it
+await badge.ClearAsync();
+```
+
+Asking for something the platform's badge cannot show throws `NotSupportedException`, so check
+`Capabilities` first. Where there is no badge at all, `IsSupported` is false and `UnsupportedReason`
+says why.
+
+- **macOS**: `NSApp.dockTile.badgeLabel`, any short text. Unlike notifications, it **works from an
+  unbundled process** (`dotnet run` included): all it needs is the app's `NSApplication`, so create
+  the badge once the UI framework has started (`UseBadge` does). Called off the main thread, the
+  change is handed to the main run loop.
+- **Windows**: `ITaskbarList3::SetOverlayIcon`, over raw COM like the toasts. An overlay is 16 pixels
+  at 100% scaling, so Windows gets a count and no text: Hark draws it, white on a red disc, at the
+  window's scaling, and anything over 99 reads "99+". It goes on a window's taskbar button: with
+  `UseBadge`, the main window; otherwise `BadgeOptions.WindowHandle`, or else the process's first
+  visible window. Before there is a window, setting a badge throws and says so. Progress is
+  `SetProgressValue`.
+- **Linux / BSD**: the `Update` signal of Unity's LauncherEntry protocol on the session bus, for
+  `application://<AppId>.desktop`, so `AppIdentity.AppId` must match your installed `.desktop` file.
+  **KDE Plasma's task manager, Dash to Dock and Plank show it; GNOME's own dash does not.** The
+  signal has no reply, so a desktop that ignores it cannot be detected.
+
+## Attention
+
+`WindowAttention` (Hark.Avalonia) asks the user to look at a window that is not in front. It takes a
+`TopLevel`, because Windows and X11 work per window, and is used on the UI thread.
+
+```csharp
+var attention = new WindowAttention(mainWindow);
+if (attention.IsSupported)
+    attention.Request(AttentionLevel.Critical); // or Informational, the default
+// Later, if it no longer matters:
+attention.Cancel();
+```
+
+| Platform | What happens | Informational | Critical | Cancel |
+| --- | --- | --- | --- | --- |
+| macOS | `[NSApp requestUserAttention:]`: the Dock icon bounces | Once | Until the app is active | Yes |
+| Windows | `FlashWindowEx` on the taskbar button | Flashes once, stays lit | Flashes until the window is in front | Yes |
+| X11 | `_NET_WM_STATE_DEMANDS_ATTENTION` | The window manager decides | Same as informational | Yes |
+
+Every platform ignores a request for the window, or app, already in front, and ends it when the
+user comes. Avalonia 12 has no Wayland backend of its own: on a Wayland desktop its windows run under
+XWayland and get the X11 request, which the compositor shows its own way. A window with any other
+kind of handle reports unsupported, with the reason.
+
 ## Dependencies
 
 The Linux backend uses `Tmds.DBus.Protocol`, pinned to the version Avalonia 12 itself references,
@@ -106,7 +174,8 @@ Avalonia 11 pins an older, API-incompatible `Tmds.DBus.Protocol`.
 ## Sample app
 
 `demos/Hark.Sample` is a small Avalonia app for trying a backend by hand: every `Notification`
-property has a control, and every call and event goes into a log.
+property has a control, the badge and the attention request have theirs, and every call and event
+goes into a log. The attention request waits 3 seconds, to give you time to switch to another app.
 
 ```bash
 dotnet run --project demos/Hark.Sample

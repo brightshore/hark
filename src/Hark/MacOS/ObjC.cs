@@ -127,6 +127,14 @@ internal static unsafe class ObjC
     public static void SendVoid(IntPtr receiver, IntPtr selector, nuint a, IntPtr block)
         => ((delegate* unmanaged<IntPtr, IntPtr, nuint, IntPtr, void>)s_msgSend)(receiver, selector, a, block);
 
+    /// <summary><c>void (id, SEL, SEL, id, BOOL)</c>, for <c>performSelectorOnMainThread:withObject:waitUntilDone:</c>.</summary>
+    public static void SendVoid(IntPtr receiver, IntPtr selector, IntPtr a, IntPtr b, bool c)
+        => ((delegate* unmanaged<IntPtr, IntPtr, IntPtr, IntPtr, byte, void>)s_msgSend)(receiver, selector, a, b, c ? (byte)1 : (byte)0);
+
+    /// <summary><c>BOOL (id, SEL)</c></summary>
+    public static bool SendBool(IntPtr receiver, IntPtr selector)
+        => ((delegate* unmanaged<IntPtr, IntPtr, byte>)s_msgSend)(receiver, selector) != 0;
+
     /// <summary><c>BOOL (id, SEL, id)</c>; also fits <c>BOOL (id, SEL, SEL)</c>.</summary>
     public static bool SendBool(IntPtr receiver, IntPtr selector, IntPtr a)
         => ((delegate* unmanaged<IntPtr, IntPtr, IntPtr, byte>)s_msgSend)(receiver, selector, a) != 0;
