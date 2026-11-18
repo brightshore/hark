@@ -51,6 +51,110 @@ public sealed class PlatformSelectionTests
         command.Should().Contain(Path.GetFileName(Environment.ProcessPath!), "Windows must be able to start this very process");
     }
 
+    /// <summary>
+    /// Reads AppKit's <c>NSApp</c> for real. The test host never creates an application, so the badge
+    /// must decline with that reason, and not with "AppKit could not be loaded", which is what a
+    /// wrong framework path or export name would give.
+    /// </summary>
+    [TestMethod]
+    public async Task On_macOS_a_process_without_an_application_has_no_badge_and_says_why()
+    {
+        if (!OperatingSystem.IsMacOS())
+            Assert.Inconclusive("macOS only.");
+
+        await using var badge = await BadgeManager.CreateAsync(new AppIdentity("com.example.Hark", "Hark Test"));
+
+        badge.IsSupported.Should().BeFalse();
+        badge.UnsupportedReason.Should().Contain("no NSApplication");
+    }
+
+    /// <summary>
+    /// Drives the real taskbar for a hidden window: COM creation of TaskbarList, HrInit, the overlay
+    /// icon (made by GDI from the rendered pixels) and the progress calls, through the vtable slots.
+    /// A wrong slot or signature fails as an HRESULT, or as a crash.
+    /// </summary>
+    [TestMethod]
+    public async Task On_Windows_the_badge_reaches_the_real_taskbar()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Inconclusive("Windows only.");
+        if (OperatingSystem.IsWindows()) // always true here; the analyzer cannot see through Assert.Inconclusive
+            await WindowsTaskbarRoundTripAsync();
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static async Task WindowsTaskbarRoundTripAsync()
+    {
+        var hicon = Hark.Windows.Taskbar.CreateIcon(Hark.Windows.BadgeRenderer.RenderCount(42, 24));
+        try
+        {
+            Hark.Windows.Taskbar.DescribeIcon(hicon).Should().Be((24, 24, 32), "the icon must carry the rendered 32-bit pixels at their size");
+        }
+        finally
+        {
+            Hark.Windows.Taskbar.DestroyIcon(hicon);
+        }
+
+        var window = HiddenWindow.Create();
+        try
+        {
+            await using var badge = await BadgeManager.CreateAsync(new AppIdentity("dev.brightshore.Hark.Tests", "Hark Tests"),
+                new BadgeOptions { WindowHandle = () => window });
+            badge.IsSupported.Should().BeTrue(badge.UnsupportedReason);
+
+            // The test thread is not an STA, so this takes the path a background caller takes.
+            Thread.CurrentThread.GetApartmentState().Should().NotBe(ApartmentState.STA);
+            await badge.SetCountAsync(7);
+            await badge.SetCountAsync(150);
+            await badge.SetProgressAsync(0.5);
+            await badge.ClearAsync();
+
+            // And from an STA, as from an app's UI thread. The calls complete synchronously.
+            Exception? onSta = null;
+            var sta = new Thread(() =>
+            {
+                try
+                {
+                    badge.SetCountAsync(3).GetAwaiter().GetResult();
+                    badge.ClearAsync().GetAwaiter().GetResult();
+                }
+                catch (Exception ex)
+                {
+                    onSta = ex;
+                }
+            });
+            sta.SetApartmentState(ApartmentState.STA);
+            sta.Start();
+            sta.Join(TimeSpan.FromSeconds(20)).Should().BeTrue("the taskbar calls must finish");
+            onSta.Should().BeNull();
+        }
+        finally
+        {
+            HiddenWindow.Destroy(window);
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static class HiddenWindow
+    {
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, ExactSpelling = true)]
+        private static extern nint CreateWindowExW(uint exStyle, string className, string windowName, uint style,
+            int x, int y, int width, int height, nint parent, nint menu, nint instance, nint param);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", ExactSpelling = true)]
+        private static extern int DestroyWindow(nint window);
+
+        /// <summary>A top-level window of the predefined STATIC class, never shown, so the desktop is left alone.</summary>
+        public static nint Create()
+        {
+            var window = CreateWindowExW(0, "STATIC", "Hark badge test", 0, 0, 0, 100, 100, 0, 0, 0, 0);
+            window.Should().NotBe(0, "CreateWindowEx must give a real window");
+            return window;
+        }
+
+        public static void Destroy(nint window) => DestroyWindow(window);
+    }
+
     [TestMethod]
     public async Task On_Windows_a_toast_can_be_shown_and_closed_through_the_real_api()
     {
