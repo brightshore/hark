@@ -75,6 +75,54 @@ public sealed class DBusRoundTripTests
         await manager.CloseAsync(handle);
     }
 
+    /// <summary>
+    /// The launcher badge's signal, as a dock receives it: a second connection watching for
+    /// <c>Update</c> reads the URI and the properties back off a real bus.
+    /// </summary>
+    [TestMethod]
+    public async Task Launcher_badge_updates_reach_a_dock_over_a_real_bus()
+    {
+        var address = RequireSessionBus();
+
+        using var dock = new DBusConnection(address);
+        await dock.ConnectAsync();
+        var updates = System.Threading.Channels.Channel.CreateUnbounded<(string AppUri, Dictionary<string, VariantValue> Properties)>();
+        const string AppUri = "application://com.example.Hark.desktop";
+        using var watch = await dock.WatchSignalAsync(
+            sender: null, DBusLauncherEntryBus.ObjectPath(AppUri), DBusLauncherEntryBus.InterfaceName, "Update",
+            static (Message message, object? _) =>
+            {
+                var reader = message.GetBodyReader();
+                return (AppUri: reader.ReadString(), Properties: reader.ReadDictionaryOfStringToVariantValue());
+            },
+            signal =>
+            {
+                if (signal.HasValue)
+                    updates.Writer.TryWrite(signal.Value);
+            },
+            ObserverFlags.None, emitOnCapturedContext: false);
+
+        await using var badge = LauncherEntryBadgeManager.Create(
+            new AppIdentity("com.example.Hark", "Hark Test"), await DBusLauncherEntryBus.ConnectAsync(address, CancellationToken.None));
+        await badge.SetCountAsync(12);
+        await badge.SetProgressAsync(0.75);
+        await badge.ClearAsync();
+
+        var count = await updates.Reader.ReadAsync().AsTask().WaitAsync(Wait);
+        count.AppUri.Should().Be(AppUri);
+        count.Properties["count"].GetInt64().Should().Be(12);
+        count.Properties["count-visible"].GetBool().Should().BeTrue();
+        count.Properties.Should().NotContainKey("progress", "an update carries only what changed");
+
+        var progress = await updates.Reader.ReadAsync().AsTask().WaitAsync(Wait);
+        progress.Properties["progress"].GetDouble().Should().Be(0.75);
+        progress.Properties["progress-visible"].GetBool().Should().BeTrue();
+
+        var clear = await updates.Reader.ReadAsync().AsTask().WaitAsync(Wait);
+        clear.Properties["count-visible"].GetBool().Should().BeFalse();
+        clear.Properties["progress-visible"].GetBool().Should().BeFalse();
+    }
+
     private static string RequireSessionBus()
     {
         var address = OperatingSystem.IsLinux() ? DBusAddress.Session : null;
