@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Description>Avalonia integration for Hark native OS notifications: AppBuilder setup and UI-thread event delivery.</Description>
-    <PackageTags>avalonia;notifications;toast;desktop</PackageTags>
+    <Description>Avalonia integration for Hark native OS notifications: AppBuilder setup, UI-thread event delivery, the app badge, and window attention requests.</Description>
+    <!-- The attention requests call the Objective-C runtime and Xlib with UTF-8 names. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PackageTags>avalonia;notifications;toast;desktop;badge;attention</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,5 +13,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hark\Hark.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hark.Tests" />
   </ItemGroup>
 </Project>
