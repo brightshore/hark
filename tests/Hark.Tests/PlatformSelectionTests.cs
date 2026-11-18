@@ -51,6 +51,127 @@ public sealed class PlatformSelectionTests
         command.Should().Contain(Path.GetFileName(Environment.ProcessPath!), "Windows must be able to start this very process");
     }
 
+    /// <summary>
+    /// Reads AppKit's <c>NSApp</c> for real. The test host never creates an application, so the badge
+    /// must decline with that reason, and not with "AppKit could not be loaded", which is what a
+    /// wrong framework path or export name would give.
+    /// </summary>
+    [TestMethod]
+    public async Task On_macOS_a_process_without_an_application_has_no_badge_and_says_why()
+    {
+        if (!OperatingSystem.IsMacOS())
+            Assert.Inconclusive("macOS only.");
+
+        await using var badge = await BadgeManager.CreateAsync(new AppIdentity("com.example.Hark", "Hark Test"));
+
+        badge.IsSupported.Should().BeFalse();
+        badge.UnsupportedReason.Should().Contain("no NSApplication");
+    }
+
+    /// <summary>
+    /// Drives the real taskbar for a hidden window: COM creation of TaskbarList, HrInit, the overlay
+    /// icon (made by GDI from the rendered pixels) and the progress calls, through the vtable slots,
+    /// called from a thread-pool thread and made on the badge's STA. A wrong IID, slot or signature
+    /// fails as an HRESULT, or as a crash. A hidden window has no taskbar button, so whether the
+    /// overlay shows is a hand check.
+    /// </summary>
+    [TestMethod]
+    public async Task On_Windows_the_badge_reaches_the_real_taskbar()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Inconclusive("Windows only.");
+        if (OperatingSystem.IsWindows()) // always true here; the analyzer cannot see through Assert.Inconclusive
+            await WindowsTaskbarRoundTripAsync();
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static async Task WindowsTaskbarRoundTripAsync()
+    {
+        var hicon = Hark.Windows.Taskbar.CreateIcon(Hark.Windows.BadgeRenderer.RenderCount(42, 24));
+        try
+        {
+            Hark.Windows.Taskbar.DescribeIcon(hicon).Should().Be((24, 24, 32), "the icon must carry the rendered 32-bit pixels at their size");
+        }
+        finally
+        {
+            Hark.Windows.Taskbar.DestroyIcon(hicon);
+        }
+
+        var window = HiddenWindow.Create();
+        try
+        {
+            await using var badge = await BadgeManager.CreateAsync(new AppIdentity("dev.brightshore.Hark.Tests", "Hark Tests"),
+                new BadgeOptions { WindowHandle = () => window });
+            badge.IsSupported.Should().BeTrue(badge.UnsupportedReason);
+
+            // Through the public path, from a thread-pool thread, as after an await in an app.
+            var wait = TimeSpan.FromSeconds(20);
+            await Task.Run(async () =>
+            {
+                Thread.CurrentThread.IsThreadPoolThread.Should().BeTrue();
+                await badge.SetCountAsync(7);
+                await badge.SetCountAsync(150);
+                await badge.SetProgressAsync(0.5);
+                await badge.ClearAsync();
+            }).WaitAsync(wait);
+
+            // And with the real taskbar watched: each call reaches it on an STA, with the overlay icon set.
+            var watched = new ApartmentWatchingTaskbar(new Hark.Windows.Taskbar());
+            await using var watchedBadge = Hark.Windows.WindowsBadgeManager.Create(watched, () => window);
+            await Task.Run(() => watchedBadge.SetCountAsync(5)).WaitAsync(wait);
+            await Task.Run(() => watchedBadge.SetProgressAsync(0.25)).WaitAsync(wait);
+            watched.Calls.Should().Equal(
+                ("SetOverlay", ApartmentState.STA, true),
+                ("SetProgress", ApartmentState.STA, true));
+        }
+        finally
+        {
+            HiddenWindow.Destroy(window);
+        }
+    }
+
+    /// <summary>The real taskbar, noting the apartment each call reaches it on, and whether it carried an overlay icon.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private sealed class ApartmentWatchingTaskbar(Hark.Windows.Taskbar inner) : Hark.Windows.ITaskbar
+    {
+        public List<(string Call, ApartmentState Apartment, bool HasIcon)> Calls { get; } = [];
+
+        public int OverlaySize(nint window) => inner.OverlaySize(window);
+
+        public void SetOverlay(nint window, Hark.Windows.BadgeIcon? icon, string? description)
+        {
+            Calls.Add(("SetOverlay", Thread.CurrentThread.GetApartmentState(), icon is not null));
+            inner.SetOverlay(window, icon, description);
+        }
+
+        public void SetProgress(nint window, double? progress)
+        {
+            Calls.Add(("SetProgress", Thread.CurrentThread.GetApartmentState(), progress is not null));
+            inner.SetProgress(window, progress);
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static class HiddenWindow
+    {
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, ExactSpelling = true)]
+        private static extern nint CreateWindowExW(uint exStyle, string className, string windowName, uint style,
+            int x, int y, int width, int height, nint parent, nint menu, nint instance, nint param);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", ExactSpelling = true)]
+        private static extern int DestroyWindow(nint window);
+
+        /// <summary>A top-level window of the predefined STATIC class, never shown, so the desktop is left alone.</summary>
+        public static nint Create()
+        {
+            var window = CreateWindowExW(0, "STATIC", "Hark badge test", 0, 0, 0, 100, 100, 0, 0, 0, 0);
+            window.Should().NotBe(0, "CreateWindowEx must give a real window");
+            return window;
+        }
+
+        public static void Destroy(nint window) => DestroyWindow(window);
+    }
+
     [TestMethod]
     public async Task On_Windows_a_toast_can_be_shown_and_closed_through_the_real_api()
     {
